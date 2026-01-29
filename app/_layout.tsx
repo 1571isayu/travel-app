@@ -1,24 +1,17 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import "../global.css"; // 放在這裡才對！
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { useFonts, PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
+import { AppProvider } from '../context/AppContext';
+import { View, Text } from 'react-native';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+export default function Layout() {
+  const [fontsLoaded] = useFonts({ PressStart2P_400Regular });
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
-
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  if (!fontsLoaded) return <View><Text>Loading...</Text></View>;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <AppProvider>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#FEF9E7' } }} />
+    </AppProvider>
   );
 }

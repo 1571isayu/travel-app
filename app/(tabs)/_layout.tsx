@@ -1,35 +1,27 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Map, Backpack, Wallet, Users } from 'lucide-react-native';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
+        tabBarStyle: { 
+          backgroundColor: '#5D4037', 
+          borderTopWidth: 4, 
+          borderTopColor: '#000',
+          height: 60,
+          paddingBottom: 5
+        },
+        tabBarActiveTintColor: '#F4D03F', // 選中變黃色皮克敏
+        tabBarInactiveTintColor: '#FFFFFF',
+        tabBarLabelStyle: { fontFamily: 'PressStart2P_400Regular', fontSize: 10 }
+      }}
+    >
+      <Tabs.Screen name="adventure" options={{ title: '冒險', tabBarIcon: ({color}) => <Map color={color} size={20} /> }} />
+      <Tabs.Screen name="backpack" options={{ title: '背包', tabBarIcon: ({color}) => <Backpack color={color} size={20} /> }} />
+      <Tabs.Screen name="wallet" options={{ title: '錢包', tabBarIcon: ({color}) => <Wallet color={color} size={20} /> }} />
+      <Tabs.Screen name="team" options={{ title: '隊伍', tabBarIcon: ({color}) => <Users color={color} size={20} /> }} />
     </Tabs>
   );
 }

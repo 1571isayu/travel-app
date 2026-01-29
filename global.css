@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 補上這段，讓網頁版也能正確顯示像素風 */
+@font-face {
+  font-family: 'PressStart2P_400Regular';
+  src: url('https://fonts.gstatic.com/s/pressstart2p/v15/e3t4euO8Z-p9ebXJJIBqzONH4MWC.woff2') format('woff2');
+}
