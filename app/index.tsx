@@ -56,7 +56,7 @@ const handleGoogleLogin = async () => {
       {/* 頂部皮克敏圖示 */}
       <View style={styles.iconContainer}>
         <Image 
-          source={{ uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-i/red-blue/transparent/43.png' }} 
+          source={{ uri: require('../pikmin/red.jpg') }} 
           style={styles.pikminImage} 
           resizeMode="contain"
         />

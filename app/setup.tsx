@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Image, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { auth, db } from '../firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { auth, db } from '../firebaseConfig';
 
-// 這裡準備了 4 個像素風頭像供選擇
+// 這裡準備了像素風 Pikmin 頭像
 const AVATARS = [
-  { id: 'plant', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-i/red-blue/transparent/43.png' }, // 走路草
-  { id: 'flower', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-i/red-blue/transparent/44.png' }, // 臭臭花
-  { id: 'mushroom', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-i/red-blue/transparent/46.png' }, // 派拉斯
-  { id: 'dig', uri: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/versions/generation-i/red-blue/transparent/50.png' }, // 地鼠
+  { id: 'red', uri: require('../pikmin/red.jpg') },
+  { id: 'blue', uri: require('../pikmin/blue.jpg') },
+  { id: 'yellow', uri: require('../pikmin/yellow.jpg') },
+  { id: 'dark-blue', uri: require('../pikmin/dark-blue.jpg') },
+  { id: 'pink', uri: require('../pikmin/pink.jpg') },
+  { id: 'purple', uri: require('../pikmin/purple.jpg') },
+  { id: 'stone', uri: require('../pikmin/stone.jpg') },
+  { id: 'white', uri: require('../pikmin/white.jpg') },
 ];
 
 export default function SetupScreen() {
@@ -22,19 +26,20 @@ export default function SetupScreen() {
     if (!name.trim()) return alert("請輸入你的冒險者名稱！");
     
     const user = auth.currentUser;
-    if (!user) return router.replace('/'); // 如果沒登入，踢回首頁
+    if (!user) return router.replace('/'); 
 
     setLoading(true);
     try {
-      // 更新 Firebase 資料庫
+      // 注意：Firebase 不建議直接存本地的 require ID，
+      // 但如果你只是為了前端顯示，暫時這樣存是 OK 的
       await updateDoc(doc(db, "users", user.uid), {
         displayName: name,
-        photoURL: selectedAvatar,
-        isSetupComplete: true // 標記：已經創角完成
+        photoURL: selectedAvatar, 
+        isSetupComplete: true 
       });
 
       console.log("創角成功！");
-      router.replace('/home'); // 進入遊戲
+      router.replace('/home'); 
     } catch (error) {
       console.error(error);
       alert("存檔失敗，請檢查網路");
@@ -50,6 +55,11 @@ export default function SetupScreen() {
 
       <View style={styles.card}>
         
+        {/* 預覽目前選中的大頭像 */}
+        <View style={[styles.avatarOption, styles.avatarSelected, { marginBottom: 20 }]}>
+            <Image source={selectedAvatar} style={styles.avatarImg} />
+        </View>
+
         {/* 1. 頭像選擇區 */}
         <Text style={styles.label}>CHOOSE AVATAR</Text>
         <View style={styles.avatarGrid}>
@@ -59,10 +69,11 @@ export default function SetupScreen() {
               onPress={() => setSelectedAvatar(avatar.uri)}
               style={[
                 styles.avatarOption, 
-                selectedAvatar === avatar.uri && styles.avatarSelected // 如果被選中，套用特殊樣式
+                selectedAvatar === avatar.uri && styles.avatarSelected 
               ]}
             >
-              <Image source={{ uri: avatar.uri }} style={styles.avatarImg} />
+              {/* 正確修正：本地資源直接傳給 source */}
+              <Image source={avatar.uri} style={styles.avatarImg} />
             </TouchableOpacity>
           ))}
         </View>
@@ -93,26 +104,22 @@ export default function SetupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2C3E50', // 深色背景，更有創角畫面的感覺
+    backgroundColor: '#2C3E50',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
   },
   title: {
-    fontFamily: 'PressStart2P_400Regular',
     fontSize: 20,
-    color: '#F1C40F', // 金黃色標題
+    color: '#F1C40F',
     marginBottom: 10,
     textAlign: 'center',
-    textShadowColor: 'black',
-    textShadowOffset: {width: 2, height: 2},
-    textShadowRadius: 0,
+    fontWeight: 'bold', // 如果沒有字體，先用粗體代替
   },
   subtitle: {
-    fontFamily: 'sans-serif',
     color: '#BDC3C7',
     marginBottom: 30,
-    fontSize: 12,
+    fontSize: 14,
   },
   card: {
     backgroundColor: '#ECF0F1',
@@ -122,15 +129,14 @@ const styles = StyleSheet.create({
     borderColor: '#000',
     padding: 20,
     alignItems: 'center',
-    // 復古卡片陰影
     shadowColor: '#000',
     shadowOffset: { width: 8, height: 8 },
     shadowOpacity: 1, 
-    elevation: 0, 
+    elevation: 5, 
   },
   label: {
-    fontFamily: 'PressStart2P_400Regular',
     fontSize: 12,
+    fontWeight: 'bold',
     marginTop: 10,
     marginBottom: 10,
     color: '#2C3E50',
@@ -139,28 +145,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 15,
+    gap: 10,
     marginBottom: 20,
   },
   avatarOption: {
-    width: 70,
-    height: 70,
+    width: 64,
+    height: 64,
     backgroundColor: '#FFF',
     borderWidth: 2,
     borderColor: '#95A5A6',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
+    overflow: 'hidden', // 確保圖片不會超出框框
   },
   avatarSelected: {
-    borderColor: '#E84A41', // 選中時變紅色框
+    borderColor: '#E84A41',
     borderWidth: 4,
-    backgroundColor: '#FFE082', // 選中時背景變亮黃
-    transform: [{ scale: 1.1 }], // 稍微放大
+    backgroundColor: '#FFE082',
+    transform: [{ scale: 1.1 }], 
   },
   avatarImg: {
-    width: 60,
-    height: 60,
+    width: '90%',
+    height: '90%',
     resizeMode: 'contain',
   },
   input: {
@@ -168,24 +175,23 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#000',
     backgroundColor: '#FFF',
-    padding: 15,
+    padding: 12,
     fontSize: 16,
-    fontFamily: 'sans-serif', // 輸入中文用一般字體比較好讀
     textAlign: 'center',
     marginBottom: 25,
   },
   button: {
-    backgroundColor: '#27AE60', // 綠色開始按鈕
+    backgroundColor: '#27AE60',
     width: '100%',
     padding: 15,
     borderWidth: 2,
     borderColor: '#000',
-    borderBottomWidth: 6, // 立體感
+    borderBottomWidth: 6,
     alignItems: 'center',
   },
   buttonText: {
-    fontFamily: 'PressStart2P_400Regular',
     color: 'white',
     fontSize: 14,
+    fontWeight: 'bold',
   }
 });
