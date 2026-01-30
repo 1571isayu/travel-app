@@ -1,9 +1,30 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* global.css */
+body {
+  background-color: #FEF9E7; /* 皮克敏背景色 */
+  margin: 0;
+  padding: 0;
+  font-family: sans-serif;
+}
 
-/* 補上這段，讓網頁版也能正確顯示像素風 */
-@font-face {
-  font-family: 'PressStart2P_400Regular';
-  src: url('https://fonts.gstatic.com/s/pressstart2p/v15/e3t4euO8Z-p9ebXJJIBqzONH4MWC.woff2') format('woff2');
+.container {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.title {
+  font-size: 24px;
+  color: #E84A41; /* 皮克敏紅 */
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.card {
+  background-color: white;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  width: 90%;
+  margin-bottom: 10px;
 }
