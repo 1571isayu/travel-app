@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { useRouter } from 'expo-router'; 
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'; 
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
