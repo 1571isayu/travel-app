@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router'; 
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth'; 
+import { useRouter } from 'expo-router';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -9,21 +9,19 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-// 在 app/index.tsx 裡面找到 handleGoogleLogin
-
-const handleGoogleLogin = async () => {
-    setLoading(true);
+  const handleGoogleLogin = async () => {
+    setLoading(true);//舉起 忙碌
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // 1. 取得使用者的資料庫紀錄
+      // 取得使用者資料
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        // A. 如果是完全的新人 -> 先建立基礎資料，然後踢去 Setup 頁面
+        //新人>建檔
         await setDoc(userRef, {
           email: user.email,
           uid: user.uid,
@@ -33,31 +31,35 @@ const handleGoogleLogin = async () => {
         console.log("新用戶，前往創角...");
         router.replace('/setup'); // <--- 關鍵！去創角頁
       } else {
-        // B. 如果是舊人 -> 檢查有沒有設定過 (isSetupComplete)
+        // 舊人 -> 檢查有沒有設定過 (isSetupComplete)
         const userData = userSnap.data();
         if (userData.isSetupComplete) {
-            console.log("老玩家，直接進遊戲");
-            router.replace('/home');
+          console.log("老玩家，直接進遊戲");
+          router.replace('/home');
         } else {
-            console.log("資料不完整，補創角");
-            router.replace('/setup');
+          console.log("資料不完整，補創角");
+          router.replace('/setup');
         }
       }
 
     } catch (error: any) {
-      // ... 錯誤處理保持原樣
+      // 把錯誤印出來，我們才知道死在哪裡！
+      console.error("登入失敗詳細原因：", error);
+      console.log("錯誤代碼：", error.code); // Firebase 通常會給 error.code
+      console.log("錯誤訊息：", error.message);
+      alert("登入出錯囉：" + error.message); // 直接跳窗告訴你
     } finally {
       setLoading(false);
     }
-};
+  };
 
   return (
     <View style={styles.container}>
       {/* 頂部皮克敏圖示 */}
       <View style={styles.iconContainer}>
-        <Image 
-          source={{ uri: require('../pikmin/red.jpg') }} 
-          style={styles.pikminImage} 
+        <Image
+          source={require('../pikmin/red.jpg')}
+          style={styles.pikminImage}
           resizeMode="contain"
         />
       </View>
@@ -67,8 +69,8 @@ const handleGoogleLogin = async () => {
 
       {/* 只有一個大按鈕的卡片區 */}
       <View style={styles.card}>
-        <TouchableOpacity 
-          style={styles.googleButton} 
+        <TouchableOpacity
+          style={styles.googleButton}
           onPress={handleGoogleLogin}
           disabled={loading}
         >
@@ -76,11 +78,11 @@ const handleGoogleLogin = async () => {
             <ActivityIndicator color="#4A342E" />
           ) : (
             <View style={styles.btnContent}>
-               {/* 模擬 Google G Logo */}
-               <View style={styles.gIcon}>
-                 <Text style={styles.gText}>G</Text>
-               </View>
-               <Text style={styles.buttonText}>Google Email</Text>
+              {/* 模擬 Google G Logo */}
+              <View style={styles.gIcon}>
+                <Text style={styles.gText}>G</Text>
+              </View>
+              <Text style={styles.buttonText}>Google Email</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -159,7 +161,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     // 讓按鈕有點立體感
     borderBottomWidth: 5,
-    borderRightWidth: 1, 
+    borderRightWidth: 1,
   },
   btnContent: {
     flexDirection: 'row',

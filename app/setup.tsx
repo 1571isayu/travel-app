@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   card: {
-    backgroundColor: '#ECF0F1',
+    backgroundColor: '#FFF',
     width: '100%',
     maxWidth: 360,
     borderWidth: 4,
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   avatarSelected: {
     borderColor: '#E84A41',
     borderWidth: 4,
-    backgroundColor: '#FFE082',
+    backgroundColor: '#FFF',
     transform: [{ scale: 1.1 }], 
   },
   avatarImg: {
