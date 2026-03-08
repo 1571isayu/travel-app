@@ -1,43 +1,43 @@
+import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { useRouter } from 'expo-router';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import React, { useEffect } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { auth, db } from '../firebaseConfig';
-import { useFonts, PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
-// 引入動畫庫
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withRepeat, 
-  withSequence, 
-  withTiming, 
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, {
   Easing,
-  withSpring
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
 } from 'react-native-reanimated';
+import { auth, db } from '../firebaseConfig';
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const [loading, setLoading] = React.useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  // 判斷現在是「登入」還是「註冊」模式
+  const [isLoginMode, setIsLoginMode] = useState(true);
 
-  // 載入字體
   let [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
   });
 
   // --- 動畫設定 ---
-  // 1. 標題浮動動畫
   const titleTranslateY = useSharedValue(0);
   
   useEffect(() => {
-    // 讓標題無限上下浮動
     titleTranslateY.value = withRepeat(
       withSequence(
         withTiming(-5, { duration: 1500, easing: Easing.inOut(Easing.quad) }),
         withTiming(0, { duration: 1500, easing: Easing.inOut(Easing.quad) })
       ),
-      -1, // 無限循環
-      true // reverse
+      -1, 
+      true 
     );
   }, []);
 
@@ -45,47 +45,70 @@ export default function WelcomeScreen() {
     transform: [{ translateY: titleTranslateY.value }],
   }));
 
-  // 2. 按鈕按壓動畫狀態
   const buttonPressed = useSharedValue(false);
-
   const animatedButtonStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ translateY: buttonPressed.value ? 6 : 0 }], // 按下時下沉 6px
-      borderBottomWidth: buttonPressed.value ? 0 : 6,           // 按下時邊框變薄
-      marginBottom: buttonPressed.value ? 6 : 0,                // 補償位移
+      transform: [{ translateY: buttonPressed.value ? 6 : 0 }], 
+      borderBottomWidth: buttonPressed.value ? 0 : 6,           
+      marginBottom: buttonPressed.value ? 6 : 0,                
     };
   });
-  // ----------------
 
-  const handleGoogleLogin = async () => {
+  // --- 驗證邏輯：註冊後自動登入並跳轉 ---
+  const handleAuth = async () => {
+    if (!email || !password) {
+      alert("請輸入信箱與密碼！");
+      return;
+    }
+
     setLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      let user;
+      
+      if (isLoginMode) {
+        // 【登入模式】
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        user = result.user;
+      } else {
+        // 【註冊模式】Firebase 建立帳號成功後，會「自動」幫使用者登入！
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        user = result.user;
+      }
 
+      // 檢查或建立 Firestore 中的使用者資料
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
+        // 新註冊的帳號：寫入初始資料，並直接導向 setup 頁面填寫姓名
         await setDoc(userRef, {
           email: user.email,
           uid: user.uid,
           createdAt: serverTimestamp(),
           isSetupComplete: false 
         });
+        // 🚀 這裡就是註冊完自動跳轉到下一頁的關鍵！
         router.replace('/setup'); 
       } else {
+        // 舊帳號登入：檢查是否填寫過姓名
         const userData = userSnap.data();
         if (userData.isSetupComplete) {
-          router.replace('/home');
+          router.replace('/home'); // 填過了，去首頁
         } else {
-          router.replace('/setup');
+          router.replace('/setup'); // 沒填過，去補填
         }
       }
     } catch (error: any) {
-      console.error("登入失敗：", error);
-      alert("登入出錯囉：" + error.message);
+      console.error("驗證失敗：", error);
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        alert("帳號或密碼錯誤！");
+      } else if (error.code === 'auth/email-already-in-use') {
+        alert("這個信箱已經被註冊過囉！請點擊下方切換成登入模式。");
+      } else if (error.code === 'auth/weak-password') {
+        alert("密碼太弱了，請至少輸入 6 個字元。");
+      } else {
+        alert("發生錯誤：" + error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -101,7 +124,6 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* 1. 頂部頭像框：帶有浮動效果的容器 */}
       <Animated.View style={[styles.iconContainer, animatedTitleStyle]}>
         <Image
           source={require('../pikmin/red.jpg')}
@@ -110,43 +132,61 @@ export default function WelcomeScreen() {
         />
       </Animated.View>
 
-      {/* 2. 標題：強化顏色對比，也跟著浮動 */}
       <Animated.Text style={[styles.title, animatedTitleStyle]}>
         Pikmin ADVENTURE
       </Animated.Text>
       
       <Text style={styles.subtitle}>請登入以存取冒險紀錄</Text>
 
-      {/* 3. 登入卡片 */}
       <View style={styles.card}>
         
-        {/* 按鈕改用 Pressable + Animated 實作物理回饋 */}
+        <TextInput 
+          style={styles.input}
+          placeholder="Explorer Email"
+          placeholderTextColor="#A1887F"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+        <TextInput 
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor="#A1887F"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
+
         <Pressable
-          onPress={handleGoogleLogin}
+          onPress={handleAuth}
           onPressIn={() => (buttonPressed.value = true)}
           onPressOut={() => (buttonPressed.value = false)}
           disabled={loading}
-          style={{ width: '100%', marginBottom: 20 }}
+          style={{ width: '100%', marginBottom: 15 }}
         >
-          <Animated.View style={[styles.googleButton, animatedButtonStyle]}>
+          <Animated.View style={[styles.actionButton, animatedButtonStyle]}>
              {loading ? (
-                <ActivityIndicator color="#4A342E" />
+                <ActivityIndicator color="#FFF" />
               ) : (
                 <View style={styles.btnContent}>
-                  {/* Google G Logo 簡單模擬 */}
-                  <Text style={styles.gText}>G</Text> 
-                  <Text style={styles.buttonText}>Google Email</Text>
+                  <Text style={styles.buttonText}>
+                    {isLoginMode ? "START LOG IN" : "START SIGN UP"}
+                  </Text>
                 </View>
               )}
           </Animated.View>
         </Pressable>
 
-        <Text style={styles.hint}>
-          點擊上方按鈕即可快速開始您的旅程
-        </Text>
+        {/* 模式切換按鈕 */}
+        <Pressable onPress={() => setIsLoginMode(!isLoginMode)}>
+          <Text style={styles.toggleText}>
+            {isLoginMode ? "新來的探險家？點此註冊" : "已經有帳號了？點此登入"}
+          </Text>
+        </Pressable>
+
       </View>
 
-      {/* 頁尾小裝飾 */}
       <Text style={styles.footerText}>Ver. 1.0.2 - Explorers Only</Text>
     </View>
   );
@@ -155,19 +195,18 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDF0', // 統一米色背景
+    backgroundColor: '#FFFDF0',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center', 
     padding: 20,
   },
   iconContainer: {
     backgroundColor: 'white',
     borderWidth: 3,
-    borderColor: '#4A342E', // 咖啡色邊框
+    borderColor: '#4A342E',
     borderRadius: 12, 
     padding: 15,
     marginBottom: 25,
-    // 硬陰影
     shadowColor: '#000',
     shadowOffset: { width: 6, height: 6 },
     shadowOpacity: 1,
@@ -180,20 +219,19 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 20, // 稍微調小一點避免手機換行
+    fontSize: 20, 
     color: '#4A342E',
     marginBottom: 12,
     textAlign: 'center',
     lineHeight: 30,
-    // 標題陰影
     textShadowColor: '#D7CCC8',
     textShadowOffset: { width: 3, height: 3 },
     textShadowRadius: 0,
   },
   subtitle: {
     fontSize: 14,
-    color: '#8D6E63', // 淺咖啡色
-    marginBottom: 40,
+    color: '#8D6E63',
+    marginBottom: 30,
     textAlign: 'center',
     fontWeight: 'bold',
     letterSpacing: 1,
@@ -204,19 +242,28 @@ const styles = StyleSheet.create({
     maxWidth: 350,
     borderWidth: 3,
     borderColor: '#4A342E',
-    borderRadius: 0, // 硬派直角
-    padding: 35,
+    borderRadius: 0, 
+    padding: 25, 
     alignItems: 'center',
-    // 卡片硬陰影
     shadowColor: '#000',
     shadowOffset: { width: 10, height: 10 },
     shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 0,
   },
-  // Google 按鈕樣式 (內部 View)
-  googleButton: {
-    backgroundColor: '#fff',
+  input: {
+    width: '100%',
+    backgroundColor: '#FFFDF0',
+    borderWidth: 2,
+    borderColor: '#4A342E',
+    padding: 12,
+    marginBottom: 15,
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#4A342E',
+  },
+  actionButton: {
+    backgroundColor: '#E84A41', 
     width: '100%',
     paddingVertical: 18,
     borderWidth: 3,
@@ -224,37 +271,30 @@ const styles = StyleSheet.create({
     borderRadius: 0, 
     alignItems: 'center',
     justifyContent: 'center',
-    // 預設底邊厚度 (會被動畫改變)
     borderBottomWidth: 6,
-    borderBottomColor: '#4A342E', 
+    borderBottomColor: '#8C1D18', 
   },
   btnContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-  },
-  gText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#4285F4',
-    fontFamily: 'serif', 
   },
   buttonText: {
     fontFamily: 'PressStart2P_400Regular',
-    color: '#4A342E',
+    color: '#FFFFFF',
     fontSize: 12, 
   },
-  hint: {
+  toggleText: {
     fontSize: 12,
-    color: '#A1887F',
+    color: '#8D6E63',
     textAlign: 'center',
-    lineHeight: 18,
+    textDecorationLine: 'underline',
     marginTop: 10,
+    fontWeight: 'bold',
   },
   footerText: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 30, 
     fontSize: 10,
     color: '#D7CCC8',
     fontFamily: 'PressStart2P_400Regular',

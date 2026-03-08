@@ -1,13 +1,14 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth } from "firebase/auth"; // <--- 新增這一行
+import { getAnalytics, isSupported } from "firebase/analytics"; 
+
+// 加入這行 @ts-ignore 來忽略 TypeScript 的誤報
+// @ts-ignore
+import { initializeAuth, getReactNativePersistence } from "firebase/auth"; 
+
 import { getFirestore } from "firebase/firestore";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyCPEDt9Dvi1qKRYbjk6z42Ggs7NTehnCUc",
   authDomain: "travel-app-16e55.firebaseapp.com",
@@ -20,6 +21,19 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-export const auth = getAuth(app); // <--- 新增這一行，把驗證功能匯出
+
+
+// 解決報錯：先檢查環境是否支援，再初始化 Analytics (手機上不會執行，避免崩潰)
+let analytics;
+isSupported().then((supported) => {
+  if (supported) {
+    analytics = getAnalytics(app);
+  }
+});
+
+// 解決警告：使用 initializeAuth 並加入 AsyncStorage，讓使用者的登入狀態可以保留
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage)
+});
+
 export const db = getFirestore(app);

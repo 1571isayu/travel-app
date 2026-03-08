@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"name": "my-first-app",
+			"path": ".."
+		},
+		{
+			"path": "../../../pikmin"
+		}
+	],
+	"settings": {}
+}

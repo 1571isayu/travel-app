@@ -1,7 +1,17 @@
 import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { 
+  ActivityIndicator, 
+  Image, 
+  StyleSheet, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  View, 
+  KeyboardAvoidingView, 
+  Platform 
+} from 'react-native';
 
 const DECORATION_RED = require('../pikmin/red.jpg');
 const DECORATION_BLUE = require('../pikmin/blue.jpg');
@@ -17,225 +27,193 @@ export default function HomeScreen() {
   const [adventureDate, setAdventureDate] = useState('');
   const [joinId, setJoinId] = useState('');
 
-  const handleCreate = () => { /* ... */ };
-  const handleJoin = () => { /* ... */ };
+  const handleCreate = () => {
+    if (!adventureName || !adventureDate) return;
+
+    // 產生 6 位數 ID
+    const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // --- 關鍵修復：跳轉到 (tabs) 分組 ---
+    router.replace({
+      pathname: '/(tabs)/adventure',
+      params: { 
+        id: randomId, 
+        name: adventureName,
+        date: adventureDate
+      }
+    });
+  };
+
+  const handleJoin = () => {
+    if (!joinId) return;
+    // 加入邏輯...
+    router.replace({
+      pathname: '/(tabs)/adventure',
+      params: { id: joinId }
+    });
+  };
 
   if (!fontsLoaded) {
     return (
-      <View style={{flex:1, justifyContent:'center', alignItems:'center', backgroundColor: '#FFFDF0'}}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4A342E" />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      
-      <View style={styles.header}>
-        <Text style={styles.pixelTitle}>PIKMIN LOG</Text> 
-        <Text style={styles.headerSubtitle}>—— 選擇你的冒險方式 ——</Text>
-      </View>
-
-      <View style={styles.rowContainer}>
-
-        {/* --- 左邊：建立冒險 --- */}
-        <View style={[styles.card, styles.cardRed]}>
-          <View style={styles.cardHeader}>
-            <View style={styles.titleGroup}>
-               <Image source={DECORATION_RED} style={styles.headerIcon} resizeMode="contain" />
-               <Text style={styles.pixelCardTitle}>CREATE</Text>
-            </View>
-            <View style={styles.pixelDotRed} />
-          </View>
-          
-          <Text style={styles.label}>冒險名稱</Text>
-          <TextInput 
-            style={styles.pixelInput} 
-            placeholder="e.g. 東京五日遊" 
-            placeholderTextColor="#A1887F"
-            value={adventureName}
-            onChangeText={setAdventureName}
-          />
-          <Text style={styles.label}>日期 (YYYY-MM-DD)</Text>
-          <TextInput 
-            style={styles.pixelInput} 
-            placeholder="2026-03-02" 
-            placeholderTextColor="#A1887F"
-            value={adventureDate}
-            onChangeText={setAdventureDate}
-          />
-          <View style={{flex: 1}} />
-          <TouchableOpacity style={[styles.pixelButton, styles.btnRed]} onPress={handleCreate}>
-            <Text style={styles.btnText}>開始新旅程</Text>
-          </TouchableOpacity>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <View style={styles.inner}>
+        
+        <View style={styles.header}>
+          <Text style={styles.pixelTitle}>PIKMIN LOG</Text> 
+          <Text style={styles.headerSubtitle}>—— 選擇冒險方式 ——</Text>
         </View>
 
-        {/* --- 右邊：加入冒險 --- */}
-        <View style={[styles.card, styles.cardBlue]}>
-          <View style={styles.cardHeader}>
-            <View style={styles.titleGroup}>
-               <Image source={DECORATION_BLUE} style={styles.headerIcon} resizeMode="contain" />
-               <Text style={styles.pixelCardTitle}>JOIN</Text>
+        <View style={styles.stackContainer}>
+          {/* CREATE CARD */}
+          <View style={[styles.card, styles.cardRed]}>
+            <View style={styles.cardHeader}>
+              <View style={styles.titleGroup}>
+                 <Image source={DECORATION_RED} style={styles.headerIcon} resizeMode="contain" />
+                 <Text style={styles.pixelCardTitle}>CREATE</Text>
+              </View>
             </View>
-            <View style={styles.pixelDotBlue} />
+            <TextInput 
+              style={styles.pixelInput} 
+              placeholder="冒險名稱" 
+              placeholderTextColor="#A1887F"
+              value={adventureName}
+              onChangeText={setAdventureName}
+            />
+            <TextInput 
+              style={[styles.pixelInput, { marginTop: 8 }]} 
+              placeholder="日期 YYYY/MM/DD" 
+              placeholderTextColor="#A1887F"
+              value={adventureDate}
+              onChangeText={setAdventureDate}
+            />
+            <TouchableOpacity style={[styles.pixelButton, styles.btnRed]} onPress={handleCreate}>
+              <Text style={styles.btnText}>開始旅程</Text>
+            </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>輸入冒險 ID</Text>
-          <TextInput 
-            style={styles.pixelInput} 
-            placeholder="#123456" 
-            placeholderTextColor="#A1887F"
-            value={joinId}
-            onChangeText={setJoinId}
-          />
-          <Text style={styles.hintText}>
-            請輸入隊長分享給您的 6 位數代碼，{"\n"}即可同步加入隊伍。
-          </Text>
-          <View style={{flex: 1}} />
-          <TouchableOpacity style={[styles.pixelButton, styles.btnBlue]} onPress={handleJoin}>
-            <Text style={styles.btnText}>加入現有隊伍</Text>
-          </TouchableOpacity>
+          {/* JOIN CARD */}
+          <View style={[styles.card, styles.cardBlue]}>
+            <View style={styles.cardHeader}>
+              <View style={styles.titleGroup}>
+                 <Image source={DECORATION_BLUE} style={styles.headerIcon} resizeMode="contain" />
+                 <Text style={styles.pixelCardTitle}>JOIN</Text>
+              </View>
+            </View>
+            <TextInput 
+              style={styles.pixelInput} 
+              placeholder="輸入 6 位冒險 ID" 
+              placeholderTextColor="#A1887F"
+              autoCapitalize="characters"
+              value={joinId}
+              onChangeText={setJoinId}
+            />
+            <TouchableOpacity style={[styles.pixelButton, styles.btnBlue]} onPress={handleJoin}>
+              <Text style={styles.btnText}>加入隊伍</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
       </View>
-    </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFDF0', // 米色背景一致
+    backgroundColor: '#FFFDF0', // 確保背景色填滿，不留白邊
   },
-  scrollContent: {
-    padding: 40,
-    flexGrow: 1,
+  loadingContainer: {
+    flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFDF0'
+  },
+  inner: {
+    flex: 1,
+    paddingHorizontal: 25,
     justifyContent: 'center',
+    // 確保這裡沒有任何 paddingBottom 會留給 Tab Bar 的空間
   },
   header: {
     alignItems: 'center',
-    marginBottom: 50,
+    marginBottom: 20,
   },
   pixelTitle: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 36,
+    fontSize: 22,
     color: '#4A342E',
-    marginBottom: 15,
-    // 強化陰影效果
-    textShadowColor: '#D7CCC8',
-    textShadowOffset: { width: 5, height: 5 },
-    textShadowRadius: 0,
+    textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: '#8D6E63', // 改為深褐色
+    fontSize: 12,
+    color: '#8D6E63',
     fontWeight: 'bold',
-    letterSpacing: 2,
+    marginTop: 8,
   },
-
-  rowContainer: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    justifyContent: 'center',
-    maxWidth: 1000,
+  stackContainer: {
     width: '100%',
-    alignSelf: 'center',
-    gap: 40, 
+    gap: 15,
   },
-
   card: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderWidth: 4,
+    borderWidth: 3,
     borderColor: '#4A342E',
-    padding: 30,
-    // 標誌性的硬陰影
+    padding: 15,
     shadowColor: "#000",
-    shadowOffset: { width: 10, height: 10 },
+    shadowOffset: { width: 6, height: 6 },
     shadowOpacity: 1,
     shadowRadius: 0,
-    elevation: 0,
-    minHeight: 450,
-    borderRadius: 0, // 確保完全直角
   },
-  
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    borderBottomWidth: 3,
-    borderBottomColor: '#F5F5F5', // 淡淡的分割線
-    paddingBottom: 15,
+    marginBottom: 10,
   },
   titleGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15,
+    gap: 10,
   },
   headerIcon: {
-    width: 42,
-    height: 42, 
+    width: 25,
+    height: 25, 
   },
   pixelCardTitle: {
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 20,
-    color: '#4A342E', // 統一深咖色
-    paddingTop: 4,
-  },
-
-  // 紅色系
-  cardRed: {
-    borderTopWidth: 12,
-    borderTopColor: '#E84A41',
-  },
-  pixelDotRed: { width: 16, height: 16, backgroundColor: '#E84A41', borderWidth: 3, borderColor: '#4A342E' },
-  btnRed: { backgroundColor: '#E84A41' },
-
-  // 藍色系
-  cardBlue: {
-    borderTopWidth: 12,
-    borderTopColor: '#2980B9',
-  },
-  pixelDotBlue: { width: 16, height: 16, backgroundColor: '#2980B9', borderWidth: 3, borderColor: '#4A342E' },
-  btnBlue: { backgroundColor: '#2980B9' },
-
-  label: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#4A342E', // 統一深咖
-    marginBottom: 10,
-    marginTop: 15,
+    color: '#4A342E',
   },
-  hintText: {
-    fontSize: 13,
-    color: '#A1887F', // 褐色系提示字
-    marginTop: 15,
-    lineHeight: 20,
-    fontStyle: 'italic',
-  },
+  cardRed: { borderTopWidth: 8, borderTopColor: '#E84A41' },
+  btnRed: { backgroundColor: '#E84A41' },
+  cardBlue: { borderTopWidth: 8, borderTopColor: '#2980B9' },
+  btnBlue: { backgroundColor: '#2980B9' },
   pixelInput: {
-    backgroundColor: '#FDFBF0', // 輸入框也帶一點米色感
-    borderWidth: 3,
+    backgroundColor: '#FDFBF0',
+    borderWidth: 2,
     borderColor: '#4A342E',
-    padding: 15,
-    fontSize: 16,
-    marginBottom: 12,
-    fontFamily: 'Courier', 
+    padding: 10,
+    fontSize: 14,
     color: '#3E2723',
   },
   pixelButton: {
-    paddingVertical: 18,
+    paddingVertical: 12,
     alignItems: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#000',
-    borderBottomWidth: 8, // 增加按鈕厚度
-    marginTop: 30,
-    borderRadius: 0, // 確保按鈕是直角
+    borderBottomWidth: 4,
+    marginTop: 10,
   },
   btnText: {
     color: '#FFF',
     fontFamily: 'PressStart2P_400Regular',
-    fontSize: 12, // 像素字體稍微縮小一點點比較精緻
+    fontSize: 10,
   },
 });
