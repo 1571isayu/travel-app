@@ -8,7 +8,7 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -327,5 +327,3 @@ const styles = StyleSheet.create({
     fontFamily: "PressStart2P_400Regular",
   },
 });
-
-/*賴郁凱吃大便*/
