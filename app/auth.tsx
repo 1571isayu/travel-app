@@ -1,35 +1,34 @@
 import {
-    PressStart2P_400Regular,
-    useFonts,
+  PressStart2P_400Regular,
+  useFonts,
 } from "@expo-google-fonts/press-start-2p";
 import { useRouter } from "expo-router";
 import {
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  // 🌟 修改：引入內建元件
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from "react-native";
 import { auth, db } from "../firebaseConfig";
-// 🌟 引入老師教的鍵盤控制元件
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 export default function AuthScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  // 預設為 false，代表一進來是「註冊模式」
   const [isLoginMode, setIsLoginMode] = useState(false);
 
   let [fontsLoaded] = useFonts({
@@ -41,47 +40,30 @@ export default function AuthScreen() {
       Alert.alert("錯誤", "請輸入信箱與密碼！");
       return;
     }
-
     setLoading(true);
     try {
       if (isLoginMode) {
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          email,
-          password,
-        );
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
-
         if (userDocSnap.exists() && userDocSnap.data().isSetupComplete) {
           router.replace("/home");
         } else {
           router.replace("/setup");
         }
       } else {
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email,
-          password,
-        );
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
-
-        await setDoc(
-          doc(db, "users", user.uid),
-          {
-            email: user.email,
-            createdAt: serverTimestamp(),
-            isSetupComplete: false,
-          },
-          { merge: true },
-        );
-
+        await setDoc(doc(db, "users", user.uid), {
+          email: user.email,
+          createdAt: serverTimestamp(),
+          isSetupComplete: false,
+        }, { merge: true });
         Alert.alert("成功", "註冊成功！請設定您的角色。");
         router.replace("/setup");
       }
     } catch (error: any) {
-      // ... 錯誤處理保持不變 ...
       Alert.alert("發生錯誤", error.message);
     } finally {
       setLoading(false);
@@ -91,74 +73,72 @@ export default function AuthScreen() {
   if (!fontsLoaded) return null;
 
   return (
-    // 🌟 修改：替換成 KeyboardAwareScrollView
-    <KeyboardAwareScrollView
+    // 🌟 修改 1：使用內建 KeyboardAvoidingView 解決報錯
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
-      // 🌟 重要：原本 View 的置中樣式要寫在這裡
-      contentContainerStyle={styles.innerContainer}
-      // 🌟 設定鍵盤彈起後，輸入框距離鍵盤頂端的高度
-      bottomOffset={40}
     >
-      {/* 上方裝飾用方形 Icon 框 */}
-      <View style={styles.iconBox} />
+      {/* 🌟 修改 2：使用 ScrollView 包裹內容，確保鍵盤彈起時可捲動 */}
+      <ScrollView 
+        contentContainerStyle={styles.innerContainer}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.iconBox} />
 
-      {/* 標題區 */}
-      <Text style={styles.mainTitle}>
-        {isLoginMode
-          ? "WELCOME BACK TO\nTHE ADVENTURE!"
-          : "WELCOME\nNEW ADVENTURER!"}
-      </Text>
-      <Text style={styles.subTitle}>
-        {isLoginMode ? "請登入以存取冒險紀錄" : "請註冊以加入冒險"}
-      </Text>
+        <Text style={styles.mainTitle}>
+          {isLoginMode
+            ? "WELCOME BACK TO\nTHE ADVENTURE!"
+            : "WELCOME\nNEW ADVENTURER!"}
+        </Text>
+        <Text style={styles.subTitle}>
+          {isLoginMode ? "請登入以存取冒險紀錄" : "請註冊以加入冒險"}
+        </Text>
 
-      {/* 輸入卡片區 */}
-      <View style={styles.card}>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#8D6E63"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
+        <View style={styles.card}>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#8D6E63"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#8D6E63"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#8D6E63"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
 
-        {/* 按鈕 */}
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleAuth}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.buttonText}>
-              {isLoginMode ? "LOGIN" : "SIGN UP"}
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleAuth}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {isLoginMode ? "LOGIN" : "SIGN UP"}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.switchModeBtn}
+            onPress={() => setIsLoginMode(!isLoginMode)}
+          >
+            <Text style={styles.switchModeText}>
+              {isLoginMode ? "新來的冒險家？點此註冊" : "已經有帳號了？點此登入"}
             </Text>
-          )}
-        </TouchableOpacity>
-
-        {/* 切換按鈕 */}
-        <TouchableOpacity
-          style={styles.switchModeBtn}
-          onPress={() => setIsLoginMode(!isLoginMode)}
-        >
-          <Text style={styles.switchModeText}>
-            {isLoginMode ? "新來的冒險家？點此註冊" : "已經有帳號了？點此登入"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAwareScrollView>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -168,8 +148,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFDF0",
   },
   innerContainer: {
-    // 🌟 在 ScrollView 裡，flex: 1 會失效，我們用 minHeight 確保置中效果
-    minHeight: "100%",
+    // 🌟 使用 flexGrow 確保內容垂直置中且可捲動
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 20,

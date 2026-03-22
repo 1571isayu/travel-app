@@ -1,14 +1,18 @@
-import { useRouter } from "expo-router";
-// 🌟 1. 這裡改成引入 setDoc
 import {
   PressStart2P_400Regular,
   useFonts,
 } from "@expo-google-fonts/press-start-2p";
+import { useRouter } from "expo-router";
 import { doc, setDoc } from "firebase/firestore";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
+  // 🌟 修改：換成內建相容元件
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,7 +20,6 @@ import {
   View,
 } from "react-native";
 import { auth, db } from "../firebaseConfig";
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 const AVATARS = [
   { id: "red", uri: require("../pikmin/red.jpg") },
@@ -40,30 +43,27 @@ export default function SetupScreen() {
   });
 
   const handleSaveProfile = async () => {
-    if (!name.trim()) return alert("請輸入你的冒險者名稱！");
+    if (!name.trim()) return Alert.alert("錯誤", "請輸入你的冒險者名稱！");
     const user = auth.currentUser;
-    if (!user) return router.replace("/auth"); // 🌟 找不到使用者時退回 auth 頁面
+    if (!user) return router.replace("/auth");
 
     setLoading(true);
     try {
-      // 🌟 2. 這裡改成 setDoc，並加上 { merge: true }
-      // 這樣就算資料庫裡還沒有這個人的檔案，也會自動建立，不會報錯！
       await setDoc(
         doc(db, "users", user.uid),
         {
           displayName: name,
           photoURL: selectedAvatar,
           isSetupComplete: true,
-          email: user.email, // 順便把 email 存進去
+          email: user.email,
           updatedAt: new Date(),
         },
         { merge: true },
       );
-
       router.replace("/home");
     } catch (error) {
       console.error(error);
-      alert("存檔失敗，請檢查網路或資料庫權限");
+      Alert.alert("存檔失敗", "請檢查網路或資料庫權限");
     } finally {
       setLoading(false);
     }
@@ -76,80 +76,95 @@ export default function SetupScreen() {
   }
 
   return (
-    <KeyboardAwareScrollView 
-      bottomOffset={50} // 讓鍵盤跟輸入框之間留一點空隙，比較美觀
-      contentContainerStyle={styles.container} // 保持原本的置中樣式
-    >      
-      <Text style={styles.title}>CHARACTER SELECT</Text>
-      <Text style={styles.subtitle}>—— 選擇你的探險家樣貌 ——</Text>
+    // 🌟 修改 1：使用 KeyboardAvoidingView
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.mainContainer}
+    >
+      {/* 🌟 修改 2：使用 ScrollView，解決頭像過多導致小螢幕被裁切的問題 */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.title}>CHARACTER SELECT</Text>
+        <Text style={styles.subtitle}>—— 選擇你的探險家樣貌 ——</Text>
 
-      <View style={styles.card}>
-        {/* 預覽選中的頭像 - 移除虛線，改為實線裝飾 */}
-        <View style={styles.previewContainer}>
-          <View
-            style={[
-              styles.avatarOption,
-              styles.avatarSelected,
-              styles.previewAvatar,
-            ]}
-          >
-            <Image source={selectedAvatar} style={styles.avatarImg} />
-          </View>
-        </View>
-
-        <Text style={styles.label}>CHOOSE AVATAR</Text>
-        <View style={styles.avatarGrid}>
-          {AVATARS.map((avatar) => (
-            <TouchableOpacity
-              key={avatar.id}
-              onPress={() => setSelectedAvatar(avatar.uri)}
+        <View style={styles.card}>
+          <View style={styles.previewContainer}>
+            <View
               style={[
                 styles.avatarOption,
-                selectedAvatar === avatar.uri
-                  ? styles.avatarSelected
-                  : styles.avatarUnselected,
+                styles.avatarSelected,
+                styles.previewAvatar,
               ]}
             >
-              <Image source={avatar.uri} style={styles.avatarImg} />
-            </TouchableOpacity>
-          ))}
+              <Image source={selectedAvatar} style={styles.avatarImg} />
+            </View>
+          </View>
+
+          <Text style={styles.label}>CHOOSE AVATAR</Text>
+          <View style={styles.avatarGrid}>
+            {AVATARS.map((avatar) => (
+              <TouchableOpacity
+                key={avatar.id}
+                onPress={() => setSelectedAvatar(avatar.uri)}
+                style={[
+                  styles.avatarOption,
+                  selectedAvatar === avatar.uri
+                    ? styles.avatarSelected
+                    : styles.avatarUnselected,
+                ]}
+              >
+                <Image source={avatar.uri} style={styles.avatarImg} />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>ENTER NAME</Text>
+          <TextInput
+            style={styles.lineInput}
+            placeholder="請在此輸入名稱"
+            value={name}
+            onChangeText={setName}
+            placeholderTextColor="#A1887F"
+            maxLength={10}
+          />
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleSaveProfile}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>CONFIRM & START</Text>
+            )}
+          </TouchableOpacity>
         </View>
-
-        <Text style={styles.label}>ENTER NAME</Text>
-        <TextInput
-          style={styles.lineInput}
-          placeholder="請在此輸入名稱"
-          value={name}
-          onChangeText={setName}
-          placeholderTextColor="#A1887F"
-          maxLength={10}
-        />
-
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleSaveProfile}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? "SAVING..." : "CONFIRM & START"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAwareScrollView>  
-    );
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  // 🌟 修改：確保外層容器填滿
+  mainContainer: {
     flex: 1,
     backgroundColor: "#FFFDF0",
+  },
+  scrollContent: {
+    // 🌟 重要：使用 flexGrow 確保置中且內容多時可滾動
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
+    paddingTop: 60, // 給頂部留一點空間
+    paddingBottom: 40,
   },
   title: {
     fontFamily: "PressStart2P_400Regular",
-    fontSize: 22,
+    fontSize: 20, // 稍微調小一點點避免溢出
     color: "#4A342E",
     marginBottom: 10,
     textAlign: "center",
@@ -157,8 +172,9 @@ const styles = StyleSheet.create({
   subtitle: {
     color: "#8D6E63",
     marginBottom: 30,
-    fontSize: 14,
+    fontSize: 12, // 縮小副標題
     fontWeight: "bold",
+    textAlign: "center",
   },
   card: {
     backgroundColor: "#FFFFFF",
@@ -169,21 +185,18 @@ const styles = StyleSheet.create({
     padding: 25,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 10, height: 10 },
-    shadowOpacity: 1,
+    shadowOffset: { width: 8, height: 8 },
+    shadowOpacity: 0.2,
     elevation: 0,
   },
   previewContainer: {
     padding: 10,
     marginBottom: 10,
-    backgroundColor: "transparent",
     alignItems: "center",
-    justifyContent: "center",
   },
   previewAvatar: {
     width: 90,
     height: 90,
-    transform: [{ scale: 1 }],
   },
   label: {
     fontFamily: "PressStart2P_400Regular",
@@ -196,17 +209,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    gap: 12,
+    gap: 10,
     marginBottom: 20,
   },
   avatarOption: {
-    width: 68,
-    height: 68,
+    width: 60, // 縮小一點，讓網格更緊湊
+    height: 60,
     backgroundColor: "#FFF",
     borderWidth: 3,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 0,
   },
   avatarUnselected: {
     borderColor: "#D7CCC8",
@@ -215,7 +227,6 @@ const styles = StyleSheet.create({
     borderColor: "#E84A41",
     backgroundColor: "#FFF",
     borderWidth: 4,
-    borderRadius: 0,
   },
   avatarImg: {
     width: "85%",
@@ -226,12 +237,10 @@ const styles = StyleSheet.create({
     width: "90%",
     borderBottomWidth: 3,
     borderBottomColor: "#4A342E",
-    backgroundColor: "transparent",
     padding: 10,
     fontSize: 18,
     textAlign: "center",
     marginBottom: 35,
-    fontFamily: "Courier",
     color: "#3E2723",
   },
   button: {
