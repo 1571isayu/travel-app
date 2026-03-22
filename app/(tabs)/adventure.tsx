@@ -73,10 +73,17 @@ export default function AdventureScreen() {
   const [viewImage, setViewImage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // 彈窗內使用的時間
   const [startTime, setStartTime] = useState(new Date());
   const [endTime, setEndTime] = useState(new Date());
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+
+  // 🌟 核心：控制列表內哪個方塊被點開
+  const [activeTimePicker, setActiveTimePicker] = useState<{
+    id: string;
+    type: "start" | "end";
+  } | null>(null);
 
   const formatTime = useCallback((date: Date) => {
     return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
@@ -134,8 +141,6 @@ export default function AdventureScreen() {
     setStartTime(new Date());
     setEndTime(new Date());
     setIsSaving(false);
-    setShowStartPicker(false);
-    setShowEndPicker(false);
   };
 
   const handleEdit = (item: TimelineItemType) => {
@@ -145,7 +150,6 @@ export default function AdventureScreen() {
     setTaskLocation(item.location || "");
     setTaskDesc(item.desc || "");
     setTaskImage(item.picUrl || null);
-
     if (item.time) {
       const parsed = parseTime(item.time);
       setStartTime(parsed.s);
@@ -160,9 +164,7 @@ export default function AdventureScreen() {
       {
         text: "刪除",
         style: "destructive",
-        onPress: () => {
-          setTimeline((prev) => prev.filter((t) => t.id !== id));
-        },
+        onPress: () => setTimeline((prev) => prev.filter((t) => t.id !== id)),
       },
     ]);
   };
@@ -171,7 +173,6 @@ export default function AdventureScreen() {
     if (!taskTitle) return Alert.alert("提示", "請輸入標題！");
     setIsSaving(true);
     let newLat, newLng;
-
     if (taskLocation) {
       try {
         const geo = await Location.geocodeAsync(taskLocation);
@@ -209,93 +210,200 @@ export default function AdventureScreen() {
     handleCloseModal();
   };
 
+  // 🌟 修改列表內的時間並直接儲存
+  const handleDirectTimeChange = (
+    id: string,
+    newDate: Date,
+    type: "start" | "end",
+    currentTimeStr: string,
+  ) => {
+    const parsed = parseTime(currentTimeStr);
+    let newStart = parsed.s;
+    let newEnd = parsed.e;
+
+    if (type === "start") newStart = newDate;
+    if (type === "end") newEnd = newDate;
+
+    const newTimeStr = `${formatTime(newStart)} - ${formatTime(newEnd)}`;
+    setTimeline((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, time: newTimeStr } : t)),
+    );
+  };
+
   const currentDayTimeline = timeline.filter(
     (item) => item.day === selectedDay,
   );
 
-  const renderTimelineItem = (item: TimelineItemType) => (
-    <View key={item.id} style={styles.itemWrapper}>
-      <View
-        style={
-          item.type === "warning"
-            ? styles.dotWarning
-            : item.type === "transport"
-              ? styles.dotTransport
-              : styles.dotNormal
-        }
-      />
-      <View
-        style={[styles.card, item.type === "warning" && styles.warningCard]}
-      >
+  const renderTimelineItem = (item: TimelineItemType) => {
+    const parsedTime = parseTime(item.time);
+
+    return (
+      <View key={item.id} style={styles.itemWrapper}>
         <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: 10,
-          }}
+          style={
+            item.type === "warning"
+              ? styles.dotWarning
+              : item.type === "transport"
+                ? styles.dotTransport
+                : styles.dotNormal
+          }
+        />
+        <View
+          style={[styles.card, item.type === "warning" && styles.warningCard]}
         >
-          <View style={styles.timeTag}>
-            <Text style={styles.timeTagText}>🕒 {item.time}</Text>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 10,
+            }}
+          >
+            {/* 🌟 核心：方塊即開關 */}
+            <View style={styles.compactTimeRow}>
+              {/* 開始時間方塊 */}
+              <TouchableOpacity
+                style={[
+                  styles.compactDropdown,
+                  activeTimePicker?.id === item.id &&
+                  activeTimePicker?.type === "start"
+                    ? { backgroundColor: "#F4D03F" }
+                    : { backgroundColor: "#FFFDF0" },
+                ]}
+                onPress={() =>
+                  setActiveTimePicker(
+                    activeTimePicker?.id === item.id &&
+                      activeTimePicker?.type === "start"
+                      ? null
+                      : { id: item.id, type: "start" },
+                  )
+                }
+              >
+                <Text style={styles.compactTimeText}>
+                  {formatTime(parsedTime.s)}
+                </Text>
+                <Text style={styles.compactArrow}>
+                  {activeTimePicker?.id === item.id &&
+                  activeTimePicker?.type === "start"
+                    ? "▲"
+                    : "▼"}
+                </Text>
+              </TouchableOpacity>
+
+              <Text style={styles.timeRangeDivider}>-</Text>
+
+              {/* 結束時間方塊 */}
+              <TouchableOpacity
+                style={[
+                  styles.compactDropdown,
+                  activeTimePicker?.id === item.id &&
+                  activeTimePicker?.type === "end"
+                    ? { backgroundColor: "#F4D03F" }
+                    : { backgroundColor: "#FFFDF0" },
+                ]}
+                onPress={() =>
+                  setActiveTimePicker(
+                    activeTimePicker?.id === item.id &&
+                      activeTimePicker?.type === "end"
+                      ? null
+                      : { id: item.id, type: "end" },
+                  )
+                }
+              >
+                <Text style={styles.compactTimeText}>
+                  {formatTime(parsedTime.e)}
+                </Text>
+                <Text style={styles.compactArrow}>
+                  {activeTimePicker?.id === item.id &&
+                  activeTimePicker?.type === "end"
+                    ? "▲"
+                    : "▼"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity onPress={() => handleEdit(item)}>
+                <Edit3 size={16} color="#8D6E63" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDelete(item.id)}>
+                <Trash2 size={16} color="#E84A41" />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <TouchableOpacity onPress={() => handleEdit(item)}>
-              <Edit3 size={16} color="#8D6E63" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleDelete(item.id)}>
-              <Trash2 size={16} color="#E84A41" />
-            </TouchableOpacity>
+          {/* 🌟 咻！地彈出的滾輪 (僅在對應方塊點擊時出現) */}
+          {activeTimePicker?.id === item.id && (
+            <View style={styles.inlinePickerContainer}>
+              <DateTimePicker
+                value={
+                  activeTimePicker.type === "start"
+                    ? parsedTime.s
+                    : parsedTime.e
+                }
+                mode="time"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                is24Hour={true}
+                textColor="#4A342E"
+                onChange={(event, date) => {
+                  if (date)
+                    handleDirectTimeChange(
+                      item.id,
+                      date,
+                      activeTimePicker.type,
+                      item.time,
+                    );
+                  if (Platform.OS === "android") setActiveTimePicker(null);
+                }}
+              />
+            </View>
+          )}
+
+          <Text
+            style={[
+              styles.cardTitle,
+              item.type === "warning" && { color: "#E84A41" },
+            ]}
+          >
+            {item.type === "food"
+              ? "🍔 "
+              : item.type === "transport"
+                ? "🚆 "
+                : item.type === "warning"
+                  ? "⚠️ "
+                  : "⛩️ "}
+            {item.title}
+          </Text>
+
+          <View style={styles.buttonRow}>
+            {item.mapUrl && item.location && (
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.btnMap]}
+                onPress={() =>
+                  Linking.openURL(
+                    `http://maps.google.com/?q=${encodeURIComponent(item.location!)}`,
+                  )
+                }
+              >
+                <MapPin size={12} color="#FFF" />
+                <Text style={styles.btnText}>Map</Text>
+              </TouchableOpacity>
+            )}
+            {item.picUrl && (
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.btnPic]}
+                onPress={() => setViewImage(item.picUrl || null)}
+              >
+                <ImageIcon size={12} color="#4A342E" />
+                <Text style={styles.btnTextDark}>圖片</Text>
+              </TouchableOpacity>
+            )}
           </View>
+          {item.desc ? <Text style={styles.cardDesc}>{item.desc}</Text> : null}
         </View>
-
-        <Text
-          style={[
-            styles.cardTitle,
-            item.type === "warning" && { color: "#E84A41" },
-          ]}
-        >
-          {item.type === "food"
-            ? "🍔 "
-            : item.type === "transport"
-              ? "🚆 "
-              : item.type === "warning"
-                ? "⚠️ "
-                : "⛩️ "}
-          {item.title}
-        </Text>
-
-        <View style={styles.buttonRow}>
-          {item.mapUrl && item.location && (
-            // 🌟 修正：正確的 Google Map 搜尋網址格式
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.btnMap]}
-              onPress={() =>
-                Linking.openURL(
-                  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                    item.location!,
-                  )}`,
-                )
-              }
-            >
-              <MapPin size={12} color="#FFF" />
-              <Text style={styles.btnText}>Map</Text>
-            </TouchableOpacity>
-          )}
-          {item.picUrl && (
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.btnPic]}
-              onPress={() => setViewImage(item.picUrl || null)}
-            >
-              <ImageIcon size={12} color="#4A342E" />
-              <Text style={styles.btnTextDark}>圖片</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        {item.desc ? <Text style={styles.cardDesc}>{item.desc}</Text> : null}
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -309,12 +417,6 @@ export default function AdventureScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           🗺️ {adventureTitle}
         </Text>
-
-        {/* 🌟 修正：把原本的 <div> 換成 <View> 來避免閃退 */}
-        <View style={{ display: "none" }}>
-          <Text>{viewImage}</Text>
-        </View>
-
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.toggleButton}
@@ -328,12 +430,6 @@ export default function AdventureScreen() {
             <Text style={styles.toggleButtonText}>
               {viewMode === "list" ? "地圖" : "列表"}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setModalVisible(true)}
-          >
-            <Text style={styles.addButtonText}>+新增</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -375,12 +471,13 @@ export default function AdventureScreen() {
         </ScrollView>
       </View>
 
+      {/* 🌟 核心：判斷目前是要顯示列表還是地圖 */}
       {viewMode === "list" ? (
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {currentDayTimeline.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>
-                這天還沒有行程喔！{"\n"}趕快按右上角新增吧！
+                這天還沒有行程喔！{"\n"}趕快按右下角新增吧！
               </Text>
             </View>
           ) : (
@@ -391,6 +488,7 @@ export default function AdventureScreen() {
           )}
         </ScrollView>
       ) : (
+        /* 🌟 地圖畫面被加回來囉！ */
         <View style={styles.mapContainer}>
           {Platform.OS === "web" ? (
             <View style={styles.emptyState}>
@@ -399,12 +497,22 @@ export default function AdventureScreen() {
           ) : (
             MapView && (
               <MapView
+                // 🌟 1. 加上 key：切換天數時，如果第一個景點改變，地圖就會重新跳轉對焦
+                key={
+                  currentDayTimeline.find((i) => i.lat && i.lng)?.id ||
+                  "default-map"
+                }
                 style={styles.map}
                 initialRegion={{
-                  latitude: 35.0,
-                  longitude: 135.76,
-                  latitudeDelta: 0.1,
-                  longitudeDelta: 0.1,
+                  // 🌟 2. 自動抓取當天「第一個」有經緯度的行程。如果當天完全沒行程，預設會定位在台北 101
+                  latitude:
+                    currentDayTimeline.find((i) => i.lat && i.lng)?.lat ||
+                    25.033,
+                  longitude:
+                    currentDayTimeline.find((i) => i.lat && i.lng)?.lng ||
+                    121.5654,
+                  latitudeDelta: 0.05, // 縮放比例，0.05 大概是看得到周邊街道的合適大小
+                  longitudeDelta: 0.05,
                 }}
               >
                 {currentDayTimeline
@@ -422,8 +530,18 @@ export default function AdventureScreen() {
           )}
         </View>
       )}
+      
+      {viewMode === "list" && (
+        <TouchableOpacity
+          style={styles.fabButton}
+          onPress={() => setModalVisible(true)}
+        >
+          <Text style={styles.fabButtonText}>＋</Text>
+        </TouchableOpacity>
+      )}
 
-      <Modal visible={!!viewImage} transparent={true} animationType="fade">
+      {/* 查看圖片用的 Modal */}
+      <Modal visible={!!viewImage} transparent animationType="fade">
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
@@ -452,7 +570,8 @@ export default function AdventureScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <Modal visible={modalVisible} transparent={true} animationType="fade">
+      {/* 新增/修改任務的 Modal */}
+      <Modal visible={modalVisible} transparent animationType="fade">
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
@@ -462,177 +581,124 @@ export default function AdventureScreen() {
               <Text style={styles.modalTitle}>
                 {editingId ? "✏️ 修改" : "＋ 新增"} Day {selectedDay} 任務
               </Text>
-
               <View style={styles.typeSelector}>
-                <TouchableOpacity
-                  style={[
-                    styles.typeBtn,
-                    taskType === "spot" && styles.typeBtnActive,
-                  ]}
-                  onPress={() => setTaskType("spot")}
-                >
-                  <Text
+                {["spot", "food", "transport"].map((type) => (
+                  <TouchableOpacity
+                    key={type}
                     style={[
-                      styles.typeBtnText,
-                      taskType === "spot" && styles.typeBtnTextActive,
+                      styles.typeBtn,
+                      taskType === type && styles.typeBtnActive,
                     ]}
+                    onPress={() => setTaskType(type)}
                   >
-                    ⛩️ 景點
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.typeBtn,
-                    taskType === "food" && styles.typeBtnActive,
-                  ]}
-                  onPress={() => setTaskType("food")}
-                >
-                  <Text
-                    style={[
-                      styles.typeBtnText,
-                      taskType === "food" && styles.typeBtnTextActive,
-                    ]}
-                  >
-                    🍔 美食
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.typeBtn,
-                    taskType === "transport" && styles.typeBtnActive,
-                  ]}
-                  onPress={() => setTaskType("transport")}
-                >
-                  <Text
-                    style={[
-                      styles.typeBtnText,
-                      taskType === "transport" && styles.typeBtnTextActive,
-                    ]}
-                  >
-                    🚆 交通
-                  </Text>
-                </TouchableOpacity>
+                    <Text
+                      style={[
+                        styles.typeBtnText,
+                        taskType === type && styles.typeBtnTextActive,
+                      ]}
+                    >
+                      {type === "spot"
+                        ? "⛩️ 景點"
+                        : type === "food"
+                          ? "🍔 美食"
+                          : "🚆 交通"}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <Text style={styles.inputLabel}>時間區間</Text>
               <View style={styles.timePickerRow}>
+                {/* 🌟 左側：開始時間方塊 */}
                 <TouchableOpacity
-                  style={styles.timeBtn}
+                  style={[
+                    styles.timeBtn,
+                    showStartPicker && styles.timeBtnActive, // 判斷是否選中，變更為黃色
+                  ]}
                   onPress={() => {
-                    setShowStartPicker(true);
-                    setShowEndPicker(false);
+                    // 🌟 Toggle 切換邏輯：如果是開著的就關掉，關著的就打開
+                    setShowStartPicker(!showStartPicker);
+                    setShowEndPicker(false); // 確保另一個關閉
                   }}
                 >
                   <Text style={styles.timeBtnText}>
                     {formatTime(startTime)}
                   </Text>
                 </TouchableOpacity>
+
                 <Text style={styles.timeDivider}>～</Text>
+
+                {/* 🌟 右側：結束時間方塊 */}
                 <TouchableOpacity
-                  style={styles.timeBtn}
+                  style={[
+                    styles.timeBtn,
+                    showEndPicker && styles.timeBtnActive, // 判斷是否選中，變更為黃色
+                  ]}
                   onPress={() => {
-                    setShowEndPicker(true);
-                    setShowStartPicker(false);
+                    // 🌟 Toggle 切換邏輯：如果是開著的就關掉，關著的就打開
+                    setShowEndPicker(!showEndPicker);
+                    setShowStartPicker(false); // 確保另一個關閉
                   }}
                 >
                   <Text style={styles.timeBtnText}>{formatTime(endTime)}</Text>
                 </TouchableOpacity>
               </View>
 
-              {showStartPicker && (
-                <View
-                  style={Platform.OS === "ios" ? styles.iosPickerWrapper : {}}
-                >
+              {/* 🌟 咻地滑出：彈窗內的時間選擇器 */}
+              {(showStartPicker || showEndPicker) && (
+                <View style={styles.inlinePickerContainer}>
                   <DateTimePicker
-                    value={startTime}
+                    value={showStartPicker ? startTime : endTime}
                     mode="time"
-                    is24Hour={true}
                     display={Platform.OS === "ios" ? "spinner" : "default"}
+                    is24Hour={true}
+                    textColor="#4A342E" // 🌟 補上深色文字，解決時間顏色消失的問題
                     onChange={(e, d) => {
-                      if (Platform.OS === "android") setShowStartPicker(false);
-                      if (d) setStartTime(d);
-                    }}
-                  />
-                  {Platform.OS === "ios" && (
-                    <TouchableOpacity
-                      style={styles.iosDoneBtn}
-                      onPress={() => setShowStartPicker(false)}
-                    >
-                      <Text style={styles.iosDoneBtnText}>確定完成</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
+                      if (d) showStartPicker ? setStartTime(d) : setEndTime(d);
 
-              {showEndPicker && (
-                <View
-                  style={Platform.OS === "ios" ? styles.iosPickerWrapper : {}}
-                >
-                  <DateTimePicker
-                    value={endTime}
-                    mode="time"
-                    is24Hour={true}
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={(e, d) => {
-                      if (Platform.OS === "android") setShowEndPicker(false);
-                      if (d) setEndTime(d);
+                      // Android 點擊確認後自動收起
+                      if (Platform.OS === "android" && e.type === "set") {
+                        setShowStartPicker(false);
+                        setShowEndPicker(false);
+                      }
                     }}
                   />
-                  {Platform.OS === "ios" && (
-                    <TouchableOpacity
-                      style={styles.iosDoneBtn}
-                      onPress={() => setShowEndPicker(false)}
-                    >
-                      <Text style={styles.iosDoneBtnText}>確定完成</Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
               )}
 
               <Text style={styles.inputLabel}>標題</Text>
               <TextInput
                 style={styles.input}
-                placeholder="例: 清水寺"
-                placeholderTextColor="#A1887F"
+                placeholder="例: 北海道"
                 value={taskTitle}
                 onChangeText={setTaskTitle}
               />
-
-              <Text style={styles.inputLabel}>
-                地點 (輸入明確地標，如: 台北101)
-              </Text>
+              <Text style={styles.inputLabel}>地點</Text>
               <TextInput
                 style={styles.input}
-                placeholder="例: 京都市東山區"
-                placeholderTextColor="#A1887F"
+                placeholder="例: 日本都道府縣"
                 value={taskLocation}
                 onChangeText={setTaskLocation}
               />
-
               <Text style={styles.inputLabel}>備註</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
-                placeholder="輸入備註事項..."
-                placeholderTextColor="#A1887F"
+                placeholder="輸入備註..."
                 multiline
-                numberOfLines={3}
                 value={taskDesc}
                 onChangeText={setTaskDesc}
-                textAlignVertical="top"
               />
 
               <View style={styles.modalButtonRow}>
                 <TouchableOpacity
                   style={[styles.modalBtn, styles.btnCancel]}
                   onPress={handleCloseModal}
-                  disabled={isSaving}
                 >
                   <Text style={styles.btnCancelText}>取消</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.modalBtn, styles.btnSave]}
                   onPress={handleSaveTask}
-                  disabled={isSaving}
                 >
                   {isSaving ? (
                     <ActivityIndicator color="#FFF" />
@@ -658,26 +724,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingTop: 60,
     paddingBottom: 15,
-    backgroundColor: "#FFFDF0",
   },
-  headerTitle: {
-    flex: 1,
-    fontSize: 14,
-    color: "#4A342E",
-    marginRight: 10,
-    fontWeight: "bold",
+  headerTitle: { flex: 1, fontSize: 14, color: "#4A342E", fontWeight: "bold" },
+  headerActions: {
+    flexDirection: "row",
+    gap: 10,
+    alignSelf: "flex-end", // 確保在 space-between 的 header 中置右
   },
-  headerActions: { flexDirection: "row", gap: 10 },
+  // 🌟 修改：確保地圖按鈕單獨置右
   toggleButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#AED6F1",
-    borderWidth: 2,
+    backgroundColor: "#AED6F1", // 淡藍色背景
+    borderWidth: 2, // 粗邊框
     borderColor: "#4A342E",
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderBottomWidth: 4,
+    marginLeft: "auto", // 如果 space-between 失效，強制置右
   },
+
+  // 🌟 新增：右下角綠色圈圈新增行程按鈕的容器
+  fabButton: {
+    position: "absolute",
+    bottom: 20, // 距離底部 20
+    right: 20, // 距離右側 20
+    width: 60, // 寬度
+    height: 60, // 高度 (圓形)
+    borderRadius: 30, // 圓形 (寬度的一半)
+    backgroundColor: "#2ECC71", // 🌟 用戶需求：綠色背景
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 5, // Android 陰影
+    shadowColor: "#000", // iOS 陰影
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    borderWidth: 2, // 皮克敏風格的粗邊框
+    borderColor: "#4A342E",
+  },
+  // 🌟 新增：綠色圈圈內的大白色 ＋ 號
+  fabButtonText: {
+    color: "#FFF",
+    fontSize: 30,
+    fontWeight: "bold",
+  },
+  // 🌟 補回地圖的樣式
+  mapContainer: { flex: 1 },
+  map: { width: "100%", height: "100%" },
   toggleButtonText: {
     fontSize: 10,
     color: "#4A342E",
@@ -725,19 +819,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 18,
     borderBottomWidth: 4,
-    marginLeft: 5,
   },
   addDayText: { color: "#FFF", fontSize: 18, fontWeight: "bold" },
-  emptyState: { padding: 40, alignItems: "center" },
-  emptyStateText: {
-    fontSize: 12,
-    color: "#A1887F",
-    textAlign: "center",
-    lineHeight: 24,
-    fontWeight: "bold",
-  },
-  mapContainer: { flex: 1 },
-  map: { width: "100%", height: "100%" },
   scrollContent: { paddingBottom: 40 },
   timelineContainer: {
     position: "relative",
@@ -798,20 +881,54 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
   },
   warningCard: { borderColor: "#E84A41", borderWidth: 4 },
-  timeTag: {
-    backgroundColor: "#F4D03F",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+
+  compactTimeRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  compactDropdown: {
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 2,
     borderColor: "#4A342E",
-    borderBottomWidth: 4,
+    borderBottomWidth: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  timeTagText: { fontSize: 10, color: "#4A342E", fontWeight: "bold" },
+  compactTimeText: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#4A342E",
+    marginRight: 4,
+  },
+  compactArrow: { fontSize: 8, color: "#E84A41" },
+  timeRangeDivider: { fontSize: 14, fontWeight: "bold", color: "#8D6E63" },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: "#888",
+  },
+  typeBtnTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
+  },
+
+  //往下拉的那個框
+  inlinePickerContainer: {
+    backgroundColor: "#FFF",
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    marginVertical: 10,
+    borderRadius: 8,
+    overflow: "hidden",
+    height: 200,
+  },
+
   cardTitle: {
     fontSize: 16,
     color: "#4A342E",
     marginBottom: 10,
-    lineHeight: 22,
     fontWeight: "bold",
   },
   cardDesc: {
@@ -824,34 +941,31 @@ const styles = StyleSheet.create({
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderWidth: 2,
-    borderColor: "#000",
-    borderBottomWidth: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 4,
   },
-  btnMap: { backgroundColor: "#2980B9" },
-  btnPic: { backgroundColor: "#AED6F1" },
-  btnText: { color: "#FFF", fontSize: 10, fontWeight: "bold", marginLeft: 5 },
+  btnMap: { backgroundColor: "#3498DB" },
+  btnPic: { backgroundColor: "#BDC3C7" },
+  btnText: { color: "#FFF", fontSize: 10, marginLeft: 4, fontWeight: "bold" },
   btnTextDark: {
     color: "#4A342E",
     fontSize: 10,
+    marginLeft: 4,
     fontWeight: "bold",
-    marginLeft: 5,
   },
+
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(74, 52, 46, 0.4)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
-  },
+  }, //彈出卡片的大小
   modalCard: {
+    width: "85%",
     backgroundColor: "#FFFDF0",
     borderWidth: 4,
     borderColor: "#4A342E",
-    width: "100%",
-    maxHeight: "85%",
     padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 8, height: 8 },
@@ -859,107 +973,81 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
   },
   modalTitle: {
-    fontSize: 14,
+    fontSize: 18,
     color: "#4A342E",
-    textAlign: "center",
-    marginBottom: 20,
     fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
   },
   typeSelector: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 15,
+    marginBottom: 20,
   },
   typeBtn: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    paddingVertical: 10,
+    alignItems: "center",
     borderWidth: 2,
     borderColor: "#4A342E",
-    paddingVertical: 10,
-    marginHorizontal: 4,
-    alignItems: "center",
-    borderBottomWidth: 4,
+    marginHorizontal: 2,
   },
-  typeBtnActive: {
-    backgroundColor: "#F4D03F",
-    borderBottomWidth: 2,
-    marginTop: 2,
+  typeBtnActive: { backgroundColor: "#F4D03F" },
+  typeBtnText: { fontSize: 12, color: "#4A342E", fontWeight: "bold" },
+  inputLabel: {
+    fontSize: 12,
+    color: "#4A342E",
+    fontWeight: "bold",
+    marginBottom: 8,
+    marginTop: 10,
   },
-  typeBtnText: { fontSize: 12, fontWeight: "bold", color: "#8D6E63" },
-  typeBtnTextActive: { color: "#4A342E" },
+  input: {
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    padding: 10,
+    fontSize: 14,
+    backgroundColor: "#FFF",
+    color: "#4A342E",
+  },
+  textArea: { height: 80 },
   timePickerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
-  },
+  }, //時間的選項
   timeBtn: {
     flex: 1,
-    backgroundColor: "#F4D03F",
-    borderWidth: 2,
-    borderColor: "#4A342E",
-    paddingVertical: 12,
-    alignItems: "center",
-    borderBottomWidth: 4,
-  },
-  timeBtnText: { fontSize: 14, color: "#4A342E", fontWeight: "bold" },
-  timeDivider: {
-    marginHorizontal: 10,
-    fontSize: 16,
-    color: "#4A342E",
-    fontWeight: "bold",
-  },
-  iosPickerWrapper: {
-    backgroundColor: "#EFEBE9",
+    backgroundColor: "#FFFDF0", // 🌟 初始狀態：米黃色
     borderWidth: 2,
     borderColor: "#4A342E",
     padding: 10,
-    marginBottom: 15,
     alignItems: "center",
+    height: 40,
   },
-  iosDoneBtn: {
-    backgroundColor: "#2ECC71",
-    paddingVertical: 10,
-    paddingHorizontal: 25,
-    borderWidth: 2,
-    borderColor: "#4A342E",
-    borderBottomWidth: 4,
-    marginTop: 10,
+  timeBtnActive: {
+    backgroundColor: "#F4D03F", // 🌟 展開狀態：變為黃色
   },
-  iosDoneBtnText: { color: "#FFF", fontSize: 10, fontWeight: "bold" },
-  inputLabel: {
-    fontSize: 12,
-    color: "#4A342E",
-    marginBottom: 8,
-    marginTop: 10,
+  timeBtnText: {
+    fontSize: 16,
     fontWeight: "bold",
-  },
-  input: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 2,
-    borderColor: "#4A342E",
-    padding: 12,
-    fontSize: 14,
     color: "#4A342E",
-    fontWeight: "bold",
   },
-  textArea: { height: 80 },
+  timeDivider: { marginHorizontal: 10, fontWeight: "bold" },
   modalButtonRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 25,
-    gap: 10,
+    marginTop: 30,
   },
   modalBtn: {
     flex: 1,
-    paddingVertical: 15,
+    paddingVertical: 12,
     alignItems: "center",
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: "#4A342E",
-    borderBottomWidth: 6,
+    borderBottomWidth: 4,
   },
-  btnCancel: { backgroundColor: "#D7CCC8" },
-  btnSave: { backgroundColor: "#E84A41" },
-  btnCancelText: { fontSize: 12, color: "#4A342E", fontWeight: "bold" },
-  btnSaveText: { fontSize: 12, color: "#FFF", fontWeight: "bold" },
+  btnCancel: { backgroundColor: "#EFEBE9", marginRight: 10 },
+  btnSave: { backgroundColor: "#F4D03F" },
+  btnCancelText: { color: "#8D6E63", fontWeight: "bold" },
+  btnSaveText: { color: "#4A342E", fontWeight: "bold" },
 });
