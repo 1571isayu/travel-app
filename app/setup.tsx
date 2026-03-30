@@ -2,14 +2,14 @@ import {
   PressStart2P_400Regular,
   useFonts,
 } from "@expo-google-fonts/press-start-2p";
-import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLocalSearchParams, useRouter } from "expo-router"; // 🌟 引入參數 Hook
 import { doc, setDoc } from "firebase/firestore";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
-  // 🌟 修改：換成內建相容元件
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -34,227 +34,243 @@ const AVATARS = [
 
 export default function SetupScreen() {
   const router = useRouter();
+  const { mode } = useLocalSearchParams(); // 🌟 獲取是 'edit' 還是新手註冊
   const [name, setName] = useState("");
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0].uri);
   const [loading, setLoading] = useState(false);
+  const [currentAvatarIndex, setCurrentAvatarIndex] = useState(0);
 
-  let [fontsLoaded] = useFonts({
-    PressStart2P_400Regular,
-  });
+  let [fontsLoaded] = useFonts({ PressStart2P_400Regular });
+
+  // 🌟 核心功能：如果是編輯模式，自動載入目前的使用者資料
+  useEffect(() => {
+    const loadCurrentProfile = async () => {
+      if (mode === "edit") {
+        const stored = await AsyncStorage.getItem("@user_profile");
+        if (stored) {
+          const { name: oldName, avatar: oldAvatarUri } = JSON.parse(stored);
+          setName(oldName);
+          // 比對目前頭像 URI，找到對應的 Index
+          const idx = AVATARS.findIndex(
+            (a) => Image.resolveAssetSource(a.uri).uri === oldAvatarUri,
+          );
+          if (idx !== -1) setCurrentAvatarIndex(idx);
+        }
+      }
+    };
+    loadCurrentProfile();
+  }, [mode]);
+
+  const currentAvatar = AVATARS[currentAvatarIndex];
+
+  const goToPrevAvatar = () =>
+    setCurrentAvatarIndex((prev) =>
+      prev === 0 ? AVATARS.length - 1 : prev - 1,
+    );
+  const goToNextAvatar = () =>
+    setCurrentAvatarIndex((prev) =>
+      prev === AVATARS.length - 1 ? 0 : prev + 1,
+    );
 
   const handleSaveProfile = async () => {
-    if (!name.trim()) return Alert.alert("錯誤", "請輸入你的冒險者名稱！");
+    if (!name.trim()) return Alert.alert("提示", "請輸入名稱！");
     const user = auth.currentUser;
-    if (!user) return router.replace("/auth");
 
     setLoading(true);
     try {
-      await setDoc(
-        doc(db, "users", user.uid),
-        {
-          displayName: name,
-          photoURL: selectedAvatar,
-          isSetupComplete: true,
-          email: user.email,
-          updatedAt: new Date(),
-        },
-        { merge: true },
+      const avatarUri = Image.resolveAssetSource(currentAvatar.uri).uri;
+
+      // 1. 同步 Firebase
+      if (user) {
+        await setDoc(
+          doc(db, "users", user.uid),
+          {
+            displayName: name,
+            photoURL: avatarUri,
+            updatedAt: new Date(),
+          },
+          { merge: true },
+        );
+      }
+
+      // 2. 同步本機 AsyncStorage (給 SideMenu 用)
+      await AsyncStorage.setItem(
+        "@user_profile",
+        JSON.stringify({ name, avatar: avatarUri }),
       );
-      router.replace("/home");
+
+      // 3. 🌟 根據模式跳轉
+      if (mode === "edit") {
+        Alert.alert("成功", "資料已更新！");
+        router.back(); // 編輯完，回上一頁
+      } else {
+        router.replace("/home"); // 第一次註冊完，去主頁
+      }
     } catch (error) {
       console.error(error);
-      Alert.alert("存檔失敗", "請檢查網路或資料庫權限");
+      Alert.alert("存檔失敗");
     } finally {
       setLoading(false);
     }
   };
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded)
     return (
       <ActivityIndicator size="large" color="#4A342E" style={{ flex: 1 }} />
     );
-  }
 
   return (
-    // 🌟 修改 1：使用 KeyboardAvoidingView
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.mainContainer}
     >
-      {/* 🌟 修改 2：使用 ScrollView，解決頭像過多導致小螢幕被裁切的問題 */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>CHARACTER SELECT</Text>
-        <Text style={styles.subtitle}>—— 選擇你的探險家樣貌 ——</Text>
+        <View style={styles.headerAreaContainer}>
+          <Text style={styles.titleText}>
+            {mode === "edit" ? "EDIT PROFILE" : "CHARACTER SELECT"}
+          </Text>
+          <Text style={styles.subtitleText}>
+            {mode === "edit" ? "修改你的角色資料" : "選擇你的角色"}
+          </Text>
+        </View>
 
-        <View style={styles.card}>
-          <View style={styles.previewContainer}>
-            <View
-              style={[
-                styles.avatarOption,
-                styles.avatarSelected,
-                styles.previewAvatar,
-              ]}
-            >
-              <Image source={selectedAvatar} style={styles.avatarImg} />
-            </View>
+        <View style={styles.selectorRow}>
+          <TouchableOpacity
+            onPress={goToPrevAvatar}
+            style={styles.triangleButton}
+          >
+            <Image
+              source={require("../img/arrowl.png")}
+              style={styles.arrowImage}
+            />
+          </TouchableOpacity>
+
+          <View style={styles.avatarFrameLarge}>
+            <Image source={currentAvatar.uri} style={styles.largeAvatarImg} />
           </View>
-
-          <Text style={styles.label}>CHOOSE AVATAR</Text>
-          <View style={styles.avatarGrid}>
-            {AVATARS.map((avatar) => (
-              <TouchableOpacity
-                key={avatar.id}
-                onPress={() => setSelectedAvatar(avatar.uri)}
-                style={[
-                  styles.avatarOption,
-                  selectedAvatar === avatar.uri
-                    ? styles.avatarSelected
-                    : styles.avatarUnselected,
-                ]}
-              >
-                <Image source={avatar.uri} style={styles.avatarImg} />
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.label}>ENTER NAME</Text>
-          <TextInput
-            style={styles.lineInput}
-            placeholder="請在此輸入名稱"
-            value={name}
-            onChangeText={setName}
-            placeholderTextColor="#A1887F"
-            maxLength={10}
-          />
 
           <TouchableOpacity
-            style={styles.button}
-            onPress={handleSaveProfile}
-            disabled={loading}
+            onPress={goToNextAvatar}
+            style={styles.triangleButton}
           >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.buttonText}>CONFIRM & START</Text>
-            )}
+            <Image
+              source={require("../img/arrowr.png")}
+              style={styles.arrowImage}
+            />
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.lowerAreaBoxContainer}>
+          <View style={styles.lowerInfoBox}>
+            <Text style={styles.internalLabelText}>NAME</Text>
+            <View style={styles.internalInputWrapper}>
+              <TextInput
+                style={styles.lineInputInternal}
+                placeholder="請輸入名稱"
+                value={name}
+                onChangeText={setName}
+                maxLength={10}
+              />
+              <Image
+                source={require("../img/enter_line.png")}
+                style={styles.wavyLineImage}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.internalConfirmArea}
+              onPress={handleSaveProfile}
+              disabled={loading}
+            >
+              <View style={styles.internalConfirmButton}>
+                {loading ? (
+                  <ActivityIndicator color="#4A342E" />
+                ) : (
+                  <Text style={styles.internalConfirmText}>SAVE</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+// ... styles 保持與你原本的一樣 ...
 const styles = StyleSheet.create({
-  // 🌟 修改：確保外層容器填滿
-  mainContainer: {
-    flex: 1,
-    backgroundColor: "#FFFDF0",
-  },
+  mainContainer: { flex: 1, backgroundColor: "#FFFDF0" },
   scrollContent: {
-    // 🌟 重要：使用 flexGrow 確保置中且內容多時可滾動
     flexGrow: 1,
     alignItems: "center",
-    justifyContent: "center",
     padding: 20,
-    paddingTop: 60, // 給頂部留一點空間
-    paddingBottom: 40,
+    paddingTop: 80,
   },
-  title: {
-    fontFamily: "PressStart2P_400Regular",
-    fontSize: 20, // 稍微調小一點點避免溢出
-    color: "#4A342E",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  subtitle: {
-    color: "#8D6E63",
-    marginBottom: 30,
-    fontSize: 12, // 縮小副標題
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
+  headerAreaContainer: {
     width: "100%",
-    maxWidth: 400,
-    borderWidth: 4,
-    borderColor: "#4A342E",
-    padding: 25,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 8, height: 8 },
-    shadowOpacity: 0.2,
-    elevation: 0,
+    marginBottom: 40,
   },
-  previewContainer: {
-    padding: 10,
-    marginBottom: 10,
-    alignItems: "center",
-  },
-  previewAvatar: {
-    width: 90,
-    height: 90,
-  },
-  label: {
+  titleText: {
     fontFamily: "PressStart2P_400Regular",
-    fontSize: 10,
-    marginTop: 15,
-    marginBottom: 15,
+    fontSize: 16,
     color: "#4A342E",
+    marginBottom: 10,
   },
-  avatarGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 10,
-    marginBottom: 20,
-  },
-  avatarOption: {
-    width: 60, // 縮小一點，讓網格更緊湊
-    height: 60,
+  subtitleText: { color: "#8D6E63", fontSize: 14, fontWeight: "bold" },
+  selectorRow: { flexDirection: "row", alignItems: "center", gap: 15 },
+  triangleButton: { padding: 10 },
+  arrowImage: { width: 32, height: 32, resizeMode: "contain" },
+  avatarFrameLarge: {
+    width: 180,
+    height: 180,
     backgroundColor: "#FFF",
-    borderWidth: 3,
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    borderRadius: 10,
+    justifyContent: "center",
     alignItems: "center",
-    justifyContent: "center",
   },
-  avatarUnselected: {
-    borderColor: "#D7CCC8",
-  },
-  avatarSelected: {
-    borderColor: "#E84A41",
+  largeAvatarImg: { width: "80%", height: "80%", resizeMode: "contain" },
+  lowerAreaBoxContainer: { width: "100%", alignItems: "center", marginTop: 40 },
+  lowerInfoBox: {
+    width: 260,
+    height: 180,
     backgroundColor: "#FFF",
-    borderWidth: 4,
+    borderWidth: 2.2,
+    borderColor: "#4A342E",
+    padding: 15,
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  avatarImg: {
-    width: "85%",
-    height: "85%",
-    resizeMode: "contain",
+  internalLabelText: {
+    fontFamily: "PressStart2P_400Regular",
+    fontSize: 14,
+    color: "#4A342E",
+    marginTop: 10,
   },
-  lineInput: {
+  internalInputWrapper: { width: "100%", alignItems: "center" },
+  lineInputInternal: {
     width: "90%",
-    borderBottomWidth: 3,
-    borderBottomColor: "#4A342E",
-    padding: 10,
-    fontSize: 18,
+    fontSize: 16,
     textAlign: "center",
-    marginBottom: 35,
     color: "#3E2723",
   },
-  button: {
-    backgroundColor: "#2ecc71",
-    width: "100%",
-    padding: 18,
-    borderWidth: 3,
-    borderColor: "#000",
-    borderBottomWidth: 8,
+  wavyLineImage: { width: "90%", height: 5, resizeMode: "stretch" },
+  internalConfirmArea: { width: "100%", marginBottom: 10 },
+  internalConfirmButton: {
+    height: 40,
+    backgroundColor: "#FFF",
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    justifyContent: "center",
     alignItems: "center",
   },
-  buttonText: {
+  internalConfirmText: {
     fontFamily: "PressStart2P_400Regular",
-    color: "white",
+    color: "#4A342E",
     fontSize: 12,
   },
 });

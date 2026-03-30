@@ -1,0 +1,172 @@
+import React, { useEffect, useState } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions,
+  Pressable,
+  Switch,
+  Image,
+} from "react-native";
+import { X, Moon, HelpCircle, Settings, Edit3 } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+
+const { width } = Dimensions.get("window");
+
+interface SideMenuProps {
+  visible: boolean;
+  onClose: () => void;
+}
+
+export default function SideMenu({ visible, onClose }: SideMenuProps) {
+  const router = useRouter();
+  const [userName, setUserName] = useState("冒險者");
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+
+  // 每次打開選單都重新讀取最新的本機資料
+  useEffect(() => {
+    if (visible) {
+      loadUserProfile();
+    }
+  }, [visible]);
+
+  const loadUserProfile = async () => {
+    try {
+      const storedProfile = await AsyncStorage.getItem("@user_profile");
+      if (storedProfile) {
+        const { name, avatar } = JSON.parse(storedProfile);
+        if (name) setUserName(name);
+        if (avatar) setUserAvatar(avatar);
+      }
+    } catch (error) {
+      console.error("讀取使用者資料失敗:", error);
+    }
+  };
+
+  // 🌟 修改：點擊編輯跳轉回 Setup 頁面
+  const handleEditPress = () => {
+    onClose(); // 先關閉選單
+    router.push({
+      pathname: "/setup",
+      params: { mode: "edit" }, // 告訴 Setup 頁面現在是「編輯模式」
+    });
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable
+          style={styles.menuContainer}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+            <X color="#4A342E" size={28} />
+          </TouchableOpacity>
+
+          {/* 使用者資訊區 */}
+          <View style={styles.profileSection}>
+            {userAvatar ? (
+              <Image source={{ uri: userAvatar }} style={styles.avatarBox} />
+            ) : (
+              <View style={styles.avatarBoxPlaceholder} />
+            )}
+
+            <Text style={styles.userName} numberOfLines={1}>
+              {userName}
+            </Text>
+
+            <TouchableOpacity onPress={handleEditPress} style={styles.editBtn}>
+              <Edit3 size={20} color="#8D6E63" />
+            </TouchableOpacity>
+          </View>
+
+          {/* 功能清單 */}
+          <View style={styles.menuItems}>
+            <View style={styles.itemRow}>
+              <View style={styles.itemLeft}>
+                <Moon size={22} color="#4A342E" />
+                <Text style={styles.itemText}>深色模式</Text>
+              </View>
+              <Switch
+                value={false}
+                trackColor={{ false: "#D7CCC8", true: "#8D6E63" }}
+              />
+            </View>
+
+            <TouchableOpacity style={styles.itemRow}>
+              <View style={styles.itemLeft}>
+                <HelpCircle size={22} color="#4A342E" />
+                <Text style={styles.itemText}>常見問題</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.itemRow}>
+              <View style={styles.itemLeft}>
+                <Settings size={22} color="#4A342E" />
+                <Text style={styles.itemText}>設定</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+  },
+  menuContainer: {
+    width: width * 0.75,
+    height: "100%",
+    backgroundColor: "#FDFBF0",
+    padding: 25,
+    paddingTop: 60,
+    borderLeftWidth: 4,
+    borderLeftColor: "#4A342E",
+  },
+  closeBtn: { alignSelf: "flex-end", marginBottom: 20 },
+  profileSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 40,
+  },
+  avatarBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 3,
+    borderColor: "#4A342E",
+  },
+  avatarBoxPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#D7CCC8",
+    borderWidth: 3,
+    borderColor: "#4A342E",
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#4A342E",
+    marginLeft: 15,
+    flex: 1,
+  },
+  editBtn: { padding: 5, backgroundColor: "#EFEBE9", borderRadius: 10 },
+  menuItems: { gap: 30 },
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  itemLeft: { flexDirection: "row", alignItems: "center", gap: 15 },
+  itemText: { fontSize: 18, color: "#4A342E", fontWeight: "bold" },
+});
