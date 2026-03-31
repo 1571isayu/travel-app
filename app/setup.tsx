@@ -164,7 +164,7 @@ export default function SetupScreen() {
 
         <View style={styles.lowerAreaBoxContainer}>
           <View style={styles.lowerInfoBox}>
-            <Text style={styles.internalLabelText}>NAME</Text>
+            <Text style={styles.internalLabelText}>ENTER NAME</Text>
             <View style={styles.internalInputWrapper}>
               <TextInput
                 style={styles.lineInputInternal}
@@ -206,7 +206,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: "center",
     padding: 20,
-    paddingTop: 80,
+    justifyContent: "center",
+    alignContent: "center",
   },
   headerAreaContainer: {
     width: "100%",
@@ -224,8 +225,8 @@ const styles = StyleSheet.create({
   triangleButton: { padding: 10 },
   arrowImage: { width: 32, height: 32, resizeMode: "contain" },
   avatarFrameLarge: {
-    width: 180,
-    height: 180,
+    width: 200,
+    height: 200,
     backgroundColor: "#FFF",
     borderWidth: 2,
     borderColor: "#4A342E",
