@@ -359,9 +359,7 @@ export default function HomeScreen() {
                     </Text>
 
                     <View style={styles.historyInfoRow}>
-                      <Text style={styles.historyInfoText}>
-                        📍 {adv.location}
-                      </Text>
+                      
                       <Text style={styles.historyInfoText}>
                         👤 {adv.peopleCount}人
                       </Text>

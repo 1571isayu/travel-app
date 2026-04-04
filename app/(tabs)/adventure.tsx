@@ -107,7 +107,7 @@ export default function AdventureScreen() {
             const diffDays =
               Math.ceil(
                 Math.abs(end.getTime() - start.getTime()) /
-                  (1000 * 60 * 60 * 24),
+                (1000 * 60 * 60 * 24),
               ) + 1;
             setTotalDays(diffDays);
           }
@@ -153,8 +153,8 @@ export default function AdventureScreen() {
 
     let newItems = editingId
       ? items.map((item) =>
-          item.id === editingId ? { ...item, ...taskData } : item,
-        )
+        item.id === editingId ? { ...item, ...taskData } : item,
+      )
       : [...items, { id: Date.now().toString(), ...taskData, imageUris: [] }];
 
     setItems(newItems);
@@ -162,25 +162,24 @@ export default function AdventureScreen() {
     closeModal();
   };
 
-  // 刪除邏輯
+
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
   const handleDeleteTask = (itemId: string) => {
-    Alert.alert("刪除行程", "確定要刪除嗎？", [
-      { text: "取消" },
-      {
-        text: "刪除",
-        style: "destructive",
-        onPress: async () => {
-          const newItems = items.filter((i) => i.id !== itemId);
-          setItems(newItems);
-          await AsyncStorage.setItem(
-            `@timeline_${id}`,
-            JSON.stringify(newItems),
-          );
-        },
-      },
-    ]);
+    setDeleteTargetId(itemId);
+    setIsDeleteModalVisible(true);
   };
 
+  // 真正執行的刪除動作
+  const confirmDelete = async () => {
+    if (deleteTargetId) {
+      const newItems = items.filter((i) => i.id !== deleteTargetId);
+      setItems(newItems);
+      await AsyncStorage.setItem(`@timeline_${id}`, JSON.stringify(newItems));
+      setIsDeleteModalVisible(false);
+      setDeleteTargetId(null);
+    }
+  };
   // 多圖選擇邏輯
   const pickImages = async (itemId: string) => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -220,7 +219,8 @@ export default function AdventureScreen() {
     <View style={styles.container}>
       {/* 頂部 Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        {/* 🌟 修正這裡：由 router.back() 改為 router.replace() */}
+        <TouchableOpacity onPress={() => router.replace("/home")}>
           <ChevronLeft color="#4A342E" size={28} />
         </TouchableOpacity>
 
@@ -582,6 +582,37 @@ export default function AdventureScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      {/* 自定義像素風刪除確認框 */}
+      <Modal visible={isDeleteModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { alignItems: 'center' }]}>
+            <Text style={[styles.pixelTitleInput, { fontSize: 18 }]}>DELETE？</Text>
+
+            <Image
+              source={require("../../img/ad_line.png")}
+              style={styles.modalSeparator}
+            />
+
+            <Text style={{ color: "#8D6E63", marginBottom: 20 }}>刪除後此行程無法復原！</Text>
+
+            <View style={styles.pixelBtnRow}>
+              <TouchableOpacity
+                style={[styles.pixelBtn, { backgroundColor: "#D7CCC8" }]}
+                onPress={() => setIsDeleteModalVisible(false)}
+              >
+                <Text style={styles.pixelBtnText}>CANCEL</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.pixelBtn, { backgroundColor: "#E74C3C" }]} 
+                onPress={confirmDelete}
+              >
+                <Text style={[styles.pixelBtnText, { color: "#FFF" }]}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -808,5 +839,11 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     resizeMode: "contain",
+  },
+  // 可以在樣式表裡加一個專屬刪除按鈕的顏色
+  deleteBtn: {
+    backgroundColor: "#E74C3C", // 鮮艷的紅色
+    borderColor: "#4A342E",
+    borderBottomWidth: 6,      // 增加底部厚度讓它看起來像遊戲按鈕
   },
 });
