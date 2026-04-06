@@ -1,18 +1,17 @@
-import React, { useEffect, useState } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  Pressable,
-  Switch,
-  Image,
-} from "react-native";
-import { X, Moon, HelpCircle, Settings, Edit3 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  Dimensions,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -63,7 +62,10 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           onPress={(e) => e.stopPropagation()}
         >
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-            <X color="#4A342E" size={28} />
+            <Image
+                  source={require("../img/icon_X.png")}
+                  style={{ width: 18, height: 18 }}
+                />
           </TouchableOpacity>
 
           {/* 使用者資訊區 */}
@@ -79,7 +81,10 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
             </Text>
 
             <TouchableOpacity onPress={handleEditPress} style={styles.editBtn}>
-              <Edit3 size={20} color="#8D6E63" />
+              <Image
+                  source={require("../img/icon_edit.png")}
+                  style={{ width: 18, height: 18 }}
+                />
             </TouchableOpacity>
           </View>
 
@@ -87,7 +92,10 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           <View style={styles.menuItems}>
             <View style={styles.itemRow}>
               <View style={styles.itemLeft}>
-                <Moon size={22} color="#4A342E" />
+                <Image
+                  source={require("../img/icon_moon.png")}
+                  style={{ width: 18, height: 18 }}
+                />
                 <Text style={styles.itemText}>深色模式</Text>
               </View>
               <Switch
@@ -98,14 +106,20 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
 
             <TouchableOpacity style={styles.itemRow}>
               <View style={styles.itemLeft}>
-                <HelpCircle size={22} color="#4A342E" />
-                <Text style={styles.itemText}>常見問題</Text>
+                <Image
+                  source={require("../img/icon_help.png")}
+                  style={{ width: 18, height: 18 }}
+                />
+                <Text style={styles.itemText}>使用教學</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.itemRow}>
               <View style={styles.itemLeft}>
-                <Settings size={22} color="#4A342E" />
+                <Image
+                  source={require("../img/icon_setting.png")}
+                  style={{ width: 18, height: 18 }}
+                />
                 <Text style={styles.itemText}>設定</Text>
               </View>
             </TouchableOpacity>
@@ -141,7 +155,7 @@ const styles = StyleSheet.create({
   avatarBox: {
     width: 60,
     height: 60,
-    borderRadius: 30,
+    borderRadius: 3,
     borderWidth: 3,
     borderColor: "#4A342E",
   },

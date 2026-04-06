@@ -142,7 +142,7 @@ export default function SetupScreen() {
             style={styles.triangleButton}
           >
             <Image
-              source={require("../img/arrowl.png")}
+              source={require("../img/caret_left.png")}
               style={styles.arrowImage}
             />
           </TouchableOpacity>
@@ -156,7 +156,7 @@ export default function SetupScreen() {
             style={styles.triangleButton}
           >
             <Image
-              source={require("../img/arrowr.png")}
+              source={require("../img/caret_right.png")}
               style={styles.arrowImage}
             />
           </TouchableOpacity>

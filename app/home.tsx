@@ -262,7 +262,10 @@ export default function HomeScreen() {
               style={styles.backButton}
               onPress={() => router.back()}
             >
-              <Text style={styles.backButtonText}>{"<"}</Text>
+              <Image
+                    source={require("../img/icon_chevronLeft.png")}
+                    style={{ width: 14, height: 14 }}
+                  />
             </TouchableOpacity>
             <View style={styles.headerTextCenter}>
               <Text style={styles.pixelTitle}>ADVENTURE</Text>
@@ -361,7 +364,10 @@ export default function HomeScreen() {
                     <View style={styles.historyInfoRow}>
                       
                       <Text style={styles.historyInfoText}>
-                        👤 {adv.peopleCount}人
+                        <Image
+                                      source={require("../img/icon_user.png")}
+                                      style={{ width: 16, height: 18, }}
+                                    /> {adv.peopleCount}人
                       </Text>
                     </View>
                   </TouchableOpacity>

@@ -3,14 +3,8 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import {
-  ChevronLeft,
-  Edit3,
-  Image as ImageIcon,
-  MapPin,
-  Menu,
   Plus,
-  Trash2,
-  X,
+  X
 } from "lucide-react-native";
 import React, { useContext, useEffect, useState } from "react";
 import {
@@ -221,7 +215,11 @@ export default function AdventureScreen() {
       <View style={styles.header}>
         {/* 🌟 修正這裡：由 router.back() 改為 router.replace() */}
         <TouchableOpacity onPress={() => router.replace("/home")}>
-          <ChevronLeft color="#4A342E" size={28} />
+          <Image
+            source={require("../../img/icon_chevronLeft.png")}
+            style={{ height: 14, aspectRatio: 1 }}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
@@ -234,7 +232,11 @@ export default function AdventureScreen() {
         </View>
 
         <TouchableOpacity onPress={openMenu}>
-          <Menu color="#4A342E" size={28} />
+          <Image
+            source={require("../../img/icon_menu.png")}
+            style={{ height: 14, aspectRatio: 1 }}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
       </View>
 
@@ -298,13 +300,21 @@ export default function AdventureScreen() {
                       }}
                       style={styles.actionBtn}
                     >
-                      <Edit3 size={18} color="#8D6E63" />
+                      <Image
+                        source={require("../../img/icon_edit.png")}
+                        style={{ height: 14, aspectRatio: 1 }}
+                        resizeMode="contain"
+                      />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleDeleteTask(item.id)}
                       style={styles.actionBtn}
                     >
-                      <Trash2 size={18} color="#8D6E63" />
+                      <Image
+                        source={require("../../img/icon_delete.png")}
+                          style={{ height: 14, aspectRatio: 1 }}
+                          resizeMode="contain"
+                      />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -331,10 +341,18 @@ export default function AdventureScreen() {
                       });
                     }}
                   >
-                    <MapPin size={22} color="#4A342E" />
+                    <Image
+                        source={require("../../img/icon_mapLink.png")}
+                        style={{ height: 18, aspectRatio: 1 }}
+                        resizeMode="contain"
+                      />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => pickImages(item.id)}>
-                    <ImageIcon size={22} color="#4A342E" />
+                    <Image
+                        source={require("../../img/icon_image.png")}
+                        style={{ height: 18, aspectRatio: 1 }}
+                        resizeMode="contain"
+                      />
                   </TouchableOpacity>
 
                   <ScrollView
@@ -497,7 +515,7 @@ export default function AdventureScreen() {
                             : "請選擇行程類型"}
                   </Text>
                   <Image
-                    source={require("../../img/Vector.png")}
+                    source={require("../../img/icon_chevronDown.png")}
                     style={styles.dropdownIcon}
                   />
                 </TouchableOpacity>
@@ -528,7 +546,7 @@ export default function AdventureScreen() {
                     >
                       <Text style={styles.customDropdownItemText}>美食</Text>
                       <Image
-                        source={require("../../img/icon_coffee.png")}
+                        source={require("../../img/icon_food.png")}
                         style={styles.dropdownIcon}
                       />
                     </TouchableOpacity>
@@ -604,7 +622,7 @@ export default function AdventureScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.pixelBtn, { backgroundColor: "#E74C3C" }]} 
+                style={[styles.pixelBtn, { backgroundColor: "#E74C3C" }]}
                 onPress={confirmDelete}
               >
                 <Text style={[styles.pixelBtnText, { color: "#FFF" }]}>OK</Text>
