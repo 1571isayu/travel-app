@@ -263,9 +263,9 @@ export default function HomeScreen() {
               onPress={() => router.back()}
             >
               <Image
-                    source={require("../img/icon_chevronLeft.png")}
-                    style={{ width: 14, height: 14 }}
-                  />
+                source={require("../img/icon_chevronLeft.png")}
+                style={{ width: 14, height: 14 }}
+              />
             </TouchableOpacity>
             <View style={styles.headerTextCenter}>
               <Text style={styles.pixelTitle}>ADVENTURE</Text>
@@ -362,12 +362,12 @@ export default function HomeScreen() {
                     </Text>
 
                     <View style={styles.historyInfoRow}>
-                      
+
                       <Text style={styles.historyInfoText}>
                         <Image
-                                      source={require("../img/icon_user.png")}
-                                      style={{ width: 16, height: 18, }}
-                                    /> {adv.peopleCount}人
+                          source={require("../img/icon_user.png")}
+                          style={{ width: 16, height: 18, }}
+                        /> {adv.peopleCount}人
                       </Text>
                     </View>
                   </TouchableOpacity>

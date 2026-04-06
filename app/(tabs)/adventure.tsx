@@ -208,7 +208,26 @@ export default function AdventureScreen() {
         <ActivityIndicator color="#4A342E" />
       </View>
     );
+  const renderPixelText = (text: string) => {
+    // 將文字拆解，例如 "MY 冒險" 會變成 ["MY ", "冒險"]
+    const parts = text.split(/([\u4e00-\u9fa5]+)/g);
 
+    return parts.map((part, index) => {
+      const isChinese = /[\u4e00-\u9fa5]/.test(part);
+      return (
+        <Text
+          key={index}
+          style={{
+            // 🌟 如果是中文用 Cubic11，英數用 Press Start 2P
+            fontFamily: isChinese ? "Cubic11" : "PressStart2P",
+            fontSize: isChinese ? 16 : 12, // 英文像素通常較大，稍微調小一點視覺才平衡
+          }}
+        >
+          {part}
+        </Text>
+      );
+    });
+  };
   return (
     <View style={styles.container}>
       {/* 頂部 Header */}
@@ -222,15 +241,18 @@ export default function AdventureScreen() {
           />
         </TouchableOpacity>
 
+
         <View style={styles.headerTitleContainer}>
+          {/* 🌟 標題部分：根據輸入內容自動切換字體 */}
           <Text style={styles.headerTitle}>
-            {name ? name.toString().toUpperCase() : "MY ADVENTURE"}
+            {renderPixelText(name ? name.toString().toUpperCase() : "MY ADVENTURE")}
           </Text>
-          <Text style={styles.headerDate}>
+
+          {/* 🌟 日期部分：通常是數字跟符號，直接用 Press Start 2P 即可 */}
+          <Text style={[styles.headerDate, { fontFamily: "PressStart2P", fontSize: 10, marginTop: 5 }]}>
             {`${formatShortDate(adventureDates.start)}~${formatShortDate(adventureDates.end)}`}
           </Text>
         </View>
-
         <TouchableOpacity onPress={openMenu}>
           <Image
             source={require("../../img/icon_menu.png")}
@@ -312,8 +334,8 @@ export default function AdventureScreen() {
                     >
                       <Image
                         source={require("../../img/icon_delete.png")}
-                          style={{ height: 14, aspectRatio: 1 }}
-                          resizeMode="contain"
+                        style={{ height: 14, aspectRatio: 1 }}
+                        resizeMode="contain"
                       />
                     </TouchableOpacity>
                   </View>
@@ -342,17 +364,17 @@ export default function AdventureScreen() {
                     }}
                   >
                     <Image
-                        source={require("../../img/icon_mapLink.png")}
-                        style={{ height: 18, aspectRatio: 1 }}
-                        resizeMode="contain"
-                      />
+                      source={require("../../img/icon_mapLink.png")}
+                      style={{ height: 18, aspectRatio: 1 }}
+                      resizeMode="contain"
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => pickImages(item.id)}>
                     <Image
-                        source={require("../../img/icon_image.png")}
-                        style={{ height: 18, aspectRatio: 1 }}
-                        resizeMode="contain"
-                      />
+                      source={require("../../img/icon_image.png")}
+                      style={{ height: 18, aspectRatio: 1 }}
+                      resizeMode="contain"
+                    />
                   </TouchableOpacity>
 
                   <ScrollView
@@ -648,7 +670,15 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   headerTitleContainer: { alignItems: "center" },
-  headerTitle: { fontSize: 16, color: "#4A342E", fontWeight: "bold" },
+  headerTitle: {
+    flexDirection: "row", // 確保文字水平排列
+    alignItems: "center",
+    color: "#4A342E",
+    textShadowColor: '#4A342E',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 0.1,
+    // 這裡不要寫 fontFamily，交給 renderPixelText 處理
+  },
   headerDate: { fontSize: 14, color: "#8D6E63" },
   daySelectorContainer: { marginVertical: 10 },
   dayScrollContent: { paddingHorizontal: 20, gap: 10 },
