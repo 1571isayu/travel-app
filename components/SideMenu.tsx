@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     padding: 25,
     paddingTop: 60,
     borderLeftWidth: 4,
-    borderLeftColor: "#4A342E",
+    borderLeftColor: "#5E433B",
   },
   closeBtn: { alignSelf: "flex-end", marginBottom: 20 },
   profileSection: {
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 3,
     borderWidth: 3,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
   },
   avatarBoxPlaceholder: {
     width: 60,
@@ -165,12 +165,12 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: "#D7CCC8",
     borderWidth: 3,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
   },
   userName: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#4A342E",
+    color: "#5E433B",
     marginLeft: 15,
     flex: 1,
   },
@@ -182,5 +182,5 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   itemLeft: { flexDirection: "row", alignItems: "center", gap: 15 },
-  itemText: { fontSize: 18, color: "#4A342E", fontWeight: "bold" },
+  itemText: { fontSize: 18, color: "#5E433B", fontWeight: "bold" },
 });

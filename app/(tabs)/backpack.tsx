@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 export default function AdventureScreen() {
   return (
@@ -10,5 +10,5 @@ export default function AdventureScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFDF0' },
-  text: { fontSize: 24, fontWeight: 'bold', color: '#4A342E' }
+  text: { fontSize: 24, fontWeight: 'bold', color: '#5E433B' }
 });

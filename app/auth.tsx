@@ -12,15 +12,15 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  // 🌟 修改：引入內建元件
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  // 🌟 修改：引入內建元件
-  KeyboardAvoidingView,
-  ScrollView,
-  Platform,
 } from "react-native";
 import { auth, db } from "../firebaseConfig";
 
@@ -120,7 +120,7 @@ export default function AuthScreen() {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#FFF" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.buttonText}>
                 {isLoginMode ? "LOGIN" : "SIGN UP"}
@@ -145,7 +145,7 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFDF0",
+    backgroundColor: "#F4F0E8",
   },
   innerContainer: {
     // 🌟 使用 flexGrow 確保內容垂直置中且可捲動
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     height: 70,
     backgroundColor: "#FFFFFF",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     borderRadius: 6,
     marginBottom: 20,
     shadowColor: "#000",
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   mainTitle: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 14,
-    color: "#4A342E",
+    color: "#5E433B",
     textAlign: "center",
     lineHeight: 22,
     marginBottom: 10,
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 320,
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 25,
     alignItems: "center",
     shadowColor: "#000",
@@ -199,21 +199,21 @@ const styles = StyleSheet.create({
   },
   input: {
     width: "100%",
-    backgroundColor: "#FFFDF0",
+    backgroundColor: "#F4F0E8",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 12,
     marginBottom: 20,
     fontSize: 14,
     fontWeight: "bold",
-    color: "#4A342E",
+    color: "#5E433B",
   },
   actionButton: {
-    backgroundColor: "#E84A41",
+    backgroundColor: "#EC7424",
     width: "100%",
     paddingVertical: 15,
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     alignItems: "center",
     marginTop: 5,
     shadowColor: "#000",

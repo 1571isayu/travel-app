@@ -67,7 +67,7 @@ export default function StartScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFDF0",
+    backgroundColor: "#F4F0E8",
     alignItems: "center",
     justifyContent: "space-around", // 讓元素均勻分佈
     paddingVertical: 50,
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     height: 200,
     backgroundColor: "#FFFFFF",
     borderWidth: 4,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     marginTop: 30, // 調整與頂部的間距
   },
   titleContainer: {
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 16, // 🌟 修改：縮小字體以匹配新文字
-    color: "#4A342E",
+    color: "#5E433B",
     textShadowColor: "rgba(0, 0, 0, 0.2)",
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 1,
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   startText: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 16,
-    color: "#E84A41", // 醒目的紅色
+    color: "#EC7424",
     marginBottom: 50,
   },
 });

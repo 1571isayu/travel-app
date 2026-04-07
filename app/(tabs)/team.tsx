@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Share } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import React from 'react';
+import { Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function TeamScreen() {
   // 接收從 Home 傳過來的參數
@@ -49,11 +49,11 @@ export default function TeamScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFDF0', padding: 20, paddingTop: 60 },
   header: { alignItems: 'center', marginBottom: 30 },
-  title: { fontSize: 28, fontFamily: 'PressStart2P_400Regular', color: '#4A342E' },
+  title: { fontSize: 28, fontFamily: 'PressStart2P_400Regular', color: '#5E433B' },
   idCard: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#FFFDF9',
     borderWidth: 3,
-    borderColor: '#4A342E',
+    borderColor: '#5E433B',
     padding: 20,
     marginBottom: 30,
     shadowColor: "#000",
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 0,
   },
-  label: { fontSize: 16, fontWeight: 'bold', color: '#4A342E', marginBottom: 15 },
+  label: { fontSize: 16, fontWeight: 'bold', color: '#5E433B', marginBottom: 15 },
   idBox: {
     backgroundColor: '#FDFBF0',
     borderWidth: 2,
@@ -73,14 +73,14 @@ const styles = StyleSheet.create({
   idLabel: { fontSize: 12, color: '#8D6E63', marginBottom: 5 },
   idText: { fontSize: 24, fontWeight: 'bold', color: '#E84A41', letterSpacing: 5 },
   shareButton: {
-    backgroundColor: '#4A342E',
+    backgroundColor: '#5E433B',
     padding: 12,
     marginTop: 15,
     alignItems: 'center',
   },
   shareText: { color: '#FFF', fontWeight: 'bold' },
   memberList: { flex: 1 },
-  listTitle: { fontSize: 18, fontWeight: 'bold', color: '#4A342E', marginBottom: 15 },
+  listTitle: { fontSize: 18, fontWeight: 'bold', color: '#5E433B', marginBottom: 15 },
   memberItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -89,5 +89,5 @@ const styles = StyleSheet.create({
     borderBottomColor: '#D7CCC8',
   },
   avatarPlaceholder: { width: 40, height: 40, backgroundColor: '#D7CCC8', marginRight: 15 },
-  memberName: { fontSize: 16, color: '#4A342E' },
+  memberName: { fontSize: 16, color: '#5E433B' },
 });

@@ -230,7 +230,7 @@ export default function MapScreen() {
           {coordinates.length > 1 && (
             <Polyline
               coordinates={coordinates}
-              strokeColor="#4A342E" // 🌟 連線顏色統一改回深褐色，搭配地圖更有質感
+              strokeColor="#5E433B" // 🌟 連線顏色統一改回深褐色，搭配地圖更有質感
               strokeWidth={4} // 加粗一點讓路線更明顯
               lineDashPattern={[0, 0]}
             />
@@ -258,8 +258,8 @@ export default function MapScreen() {
 
         {geocoding && (
           <View style={styles.mapOverlay}>
-            <ActivityIndicator color="#4A342E" size="large" />
-            <Text style={{ marginTop: 10, color: "#4A342E" }}>
+            <ActivityIndicator color="#5E433B" size="large" />
+            <Text style={{ marginTop: 10, color: "#5E433B" }}>
               解析地址中...
             </Text>
           </View>
@@ -276,7 +276,7 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FDFBF0" },
+  container: { flex: 1, backgroundColor: "#FFFDF9" },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   headerTitleContainer: { alignItems: "center" },
-  headerTitle: { fontSize: 16, color: "#4A342E", fontWeight: "bold" },
+  headerTitle: { fontSize: 16, color: "#5E433B", fontWeight: "bold" },
   headerDate: { fontSize: 14, color: "#8D6E63" },
   daySelectorContainer: { marginVertical: 10 },
   dayScrollContent: { paddingHorizontal: 20, gap: 10 },
@@ -295,12 +295,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 20,
     borderWidth: 2,
-    borderColor: "#4A342E",
-    backgroundColor: "#FFF",
+    borderColor: "#5E433B",
+    backgroundColor: "#FFFDF9",
   },
-  dayTabActive: { backgroundColor: "#4A342E" },
-  dayTabText: { fontSize: 12, color: "#4A342E", fontWeight: "bold" },
-  dayTabTextActive: { color: "#FFF" },
+  dayTabActive: { backgroundColor: "#5E433B" },
+  dayTabText: { fontSize: 12, color: "#5E433B", fontWeight: "bold" },
+  dayTabTextActive: { color: "#FFFDF9" },
   separatorLine: {
     width: "100%",
     height: 15,
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: "hidden",
     borderTopWidth: 3,
-    borderTopColor: "#4A342E",
+    borderTopColor: "#5E433B",
   },
   map: { width: "100%", height: "100%" },
   mapOverlay: {
@@ -324,22 +324,22 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 20,
     alignSelf: "center",
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFDF9",
     padding: 10,
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     borderRadius: 20,
   },
-  emptyText: { color: "#4A342E", fontWeight: "bold" },
+  emptyText: { color: "#5E433B", fontWeight: "bold" },
 
   // 🌟 客製化 Marker 的樣式
   customMarker: {
-    backgroundColor: "#E67E22", // 統一使用橘色
+    backgroundColor: "#EC7424", // 統一使用橘色
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20, // 圓角外觀
     borderWidth: 2,
-    borderColor: "#FFF", // 白色邊框增加對比度
+    borderColor: "#FFFDF9", // 白色邊框增加對比度
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     elevation: 4, // Android 陰影
   },
   markerText: {
-    color: "#FFF",
+    color: "#FFFDF9",
     fontWeight: "bold",
     fontSize: 14,
   },
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 8,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#E67E22", // 顏色跟上面的底色一樣
+    borderTopColor: "#EC7424", // 顏色跟上面的底色一樣
     alignSelf: "center",
   },
 });

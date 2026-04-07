@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#4A342E",
+    color: "#5E433B",
     marginVertical: 8,
   },
   cardFooter: {
@@ -752,7 +752,7 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
   },
   fullImageOverlay: {
     flex: 1,
@@ -769,9 +769,9 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#EC7424",
     borderWidth: 3,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -783,9 +783,9 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: "90%",
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFDF9",
     borderWidth: 3,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 20,
     borderRadius: 10,
     maxHeight: "80%",
@@ -793,7 +793,7 @@ const styles = StyleSheet.create({
   pixelTitleInput: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#4A342E",
+    color: "#5E433B",
     textAlign: "center",
     padding: 10,
   },
@@ -805,7 +805,7 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 12,
-    color: "#4A342E",
+    color: "#5E433B",
     fontWeight: "bold",
     marginTop: 10,
     marginBottom: 5,
@@ -813,9 +813,9 @@ const styles = StyleSheet.create({
   timePickerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   pixelTimeBox: {
     flex: 1,
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "#F4F0E8",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 10,
     alignItems: "center",
   },
@@ -823,21 +823,21 @@ const styles = StyleSheet.create({
   pixelTimeText: { fontWeight: "bold" },
   timeTilde: { fontSize: 18 },
   inlinePickerContainer: {
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#F4F0E8",
     marginTop: 10,
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
   },
   pixelInput: {
     backgroundColor: "#E8F5E9",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 10,
   },
   pickerWrapper: {
     borderWidth: 2,
-    borderColor: "#4A342E",
-    backgroundColor: "#FFF",
+    borderColor: "#5E433B",
+    backgroundColor: "#FFFDF9",
   },
   pixelTextArea: { height: 80, textAlignVertical: "top" },
   pixelBtnRow: { flexDirection: "row", gap: 10, marginTop: 20 },
@@ -845,7 +845,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 15,
     borderWidth: 3,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     alignItems: "center",
   },
   pixelBtnText: { fontWeight: "bold", fontSize: 16 },
@@ -853,9 +853,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#FDFBF0",
+    backgroundColor: "#FFFDF9",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 12,
   },
   customDropdownText: {
@@ -864,9 +864,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   customDropdownList: {
-    backgroundColor: "#FDFBF0",
+    backgroundColor: "#FFFDF9",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     borderTopWidth: 2,
     marginTop: -2,
   },
@@ -876,7 +876,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 12,
     borderBottomWidth: 2,
-    borderBottomColor: "#4A342E",
+    borderBottomColor: "#5E433B",
   },
   customDropdownItemText: {
     color: "#8D6E63",
@@ -890,8 +890,8 @@ const styles = StyleSheet.create({
   },
   // 可以在樣式表裡加一個專屬刪除按鈕的顏色
   deleteBtn: {
-    backgroundColor: "#E74C3C", // 鮮艷的紅色
-    borderColor: "#4A342E",
+    backgroundColor: "#EC7424", // 鮮艷的紅色
+    borderColor: "#5E433B",
     borderBottomWidth: 6,      // 增加底部厚度讓它看起來像遊戲按鈕
   },
 });

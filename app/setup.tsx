@@ -115,7 +115,7 @@ export default function SetupScreen() {
 
   if (!fontsLoaded)
     return (
-      <ActivityIndicator size="large" color="#4A342E" style={{ flex: 1 }} />
+      <ActivityIndicator size="large" color="#5E433B" style={{ flex: 1 }} />
     );
 
   return (
@@ -201,7 +201,7 @@ export default function SetupScreen() {
 
 // ... styles 保持與你原本的一樣 ...
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1, backgroundColor: "#FFFDF0" },
+  mainContainer: { flex: 1, backgroundColor: "#F4F0E8" },
   scrollContent: {
     flexGrow: 1,
     alignItems: "center",
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   titleText: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 16,
-    color: "#4A342E",
+    color: "#5E433B",
     marginBottom: 10,
   },
   subtitleText: { color: "#8D6E63", fontSize: 14, fontWeight: "bold" },
@@ -227,9 +227,9 @@ const styles = StyleSheet.create({
   avatarFrameLarge: {
     width: 200,
     height: 200,
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFFFF",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
@@ -239,9 +239,9 @@ const styles = StyleSheet.create({
   lowerInfoBox: {
     width: 260,
     height: 180,
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFFFF",
     borderWidth: 2.2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 15,
     alignItems: "center",
     justifyContent: "space-between",
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   internalLabelText: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 14,
-    color: "#4A342E",
+    color: "#5E433B",
     marginTop: 10,
   },
   internalInputWrapper: { width: "100%", alignItems: "center" },
@@ -257,21 +257,21 @@ const styles = StyleSheet.create({
     width: "90%",
     fontSize: 16,
     textAlign: "center",
-    color: "#3E2723",
+    color: "#5E433B",
   },
   wavyLineImage: { width: "90%", height: 5, resizeMode: "stretch" },
   internalConfirmArea: { width: "100%", marginBottom: 10 },
   internalConfirmButton: {
     height: 40,
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFFFF",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     justifyContent: "center",
     alignItems: "center",
   },
   internalConfirmText: {
     fontFamily: "PressStart2P_400Regular",
-    color: "#4A342E",
+    color: "#5E433B",
     fontSize: 12,
   },
 });

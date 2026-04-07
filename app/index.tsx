@@ -67,14 +67,14 @@ export default function LoadingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFDF0",
+    backgroundColor: "#F4F0E8",
     alignItems: "center",
     justifyContent: "center",
   },
   loadingText: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 16,
-    color: "#4A342E",
+    color: "#5E433B",
     marginBottom: 10,
     letterSpacing: 2,
   },
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     width: "70%", // 進度條的總寬度
     height: 15, // 進度條的高度
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     backgroundColor: "#FFFFFF",
     overflow: "hidden", // 讓填滿的顏色不會超出外框
   },

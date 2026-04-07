@@ -183,7 +183,7 @@ export default function HomeScreen() {
       setMarkedDates({
         [dateString]: {
           startingDay: true,
-          color: "#E84A41",
+          color: "#EC7424",
           textColor: "white",
         },
       });
@@ -196,7 +196,7 @@ export default function HomeScreen() {
         setMarkedDates({
           [dateString]: {
             startingDay: true,
-            color: "#E84A41",
+            color: "#EC7424",
             textColor: "white",
           },
         });
@@ -207,7 +207,7 @@ export default function HomeScreen() {
           [dateString]: {
             startingDay: true,
             endingDay: true,
-            color: "#E84A41",
+            color: "#EC7424",
             textColor: "white",
           },
         });
@@ -218,7 +218,7 @@ export default function HomeScreen() {
         let newMarkedDates: any = {
           [startDate]: {
             startingDay: true,
-            color: "#E84A41",
+            color: "#EC7424",
             textColor: "white",
           },
         };
@@ -226,14 +226,14 @@ export default function HomeScreen() {
         // 迴圈把中間的每一天都加上淺紅色
         let currDate = getNextDay(startDate);
         while (currDate < dateString) {
-          newMarkedDates[currDate] = { color: "#FAD4D1", textColor: "#4A342E" }; // 淺紅色底，深色字
+          newMarkedDates[currDate] = { color: "#fae2d1", textColor: "#5E433B" }; // 淺紅色底，深色字
           currDate = getNextDay(currDate);
         }
 
         // 標記結束日
         newMarkedDates[dateString] = {
           endingDay: true,
-          color: "#E84A41",
+          color: "#EC7424",
           textColor: "white",
         };
 
@@ -245,7 +245,7 @@ export default function HomeScreen() {
   if (!fontsLoaded) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A342E" />
+        <ActivityIndicator size="large" color="#5E433B" />
       </View>
     );
   }
@@ -280,7 +280,7 @@ export default function HomeScreen() {
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.card}>
+            <View style={styles.createCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.pixelCardTitle}>CREATE</Text>
                 <TouchableOpacity onPress={handleCreate}>
@@ -314,7 +314,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.card}>
+            <View style={styles.joinCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.pixelCardTitle}>JOIN</Text>
                 <TouchableOpacity onPress={handleJoin}>
@@ -334,7 +334,7 @@ export default function HomeScreen() {
               />
             </View>
 
-            <View style={styles.card}>
+            <View style={styles.selectCard}>
               <View style={styles.cardHeader}>
                 <Text style={styles.pixelCardTitle}>SELECT</Text>
               </View>
@@ -395,13 +395,13 @@ export default function HomeScreen() {
                 backgroundColor: "#ffffff",
                 calendarBackground: "#ffffff",
                 textSectionTitleColor: "#8D6E63",
-                selectedDayBackgroundColor: "#E84A41",
+                selectedDayBackgroundColor: "#EC7424",
                 selectedDayTextColor: "#ffffff",
-                todayTextColor: "#E84A41",
-                dayTextColor: "#4A342E",
-                textDisabledColor: "#d9e1e8",
-                arrowColor: "#4A342E",
-                monthTextColor: "#4A342E",
+                todayTextColor: "#EC7424",
+                dayTextColor: "#5E433B",
+                textDisabledColor: "#C5D8BA",
+                arrowColor: "#5E433B",
+                monthTextColor: "#5E433B",
                 textDayFontWeight: "bold",
                 textMonthFontWeight: "bold",
                 textDayHeaderFontWeight: "bold",
@@ -443,13 +443,13 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E4F0E4",
+    backgroundColor: "#F4F0E8",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#E4F0E4",
+    backgroundColor: "#F4F0E8",
   },
   inner: {
     flex: 1,
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 18,
-    color: "#4A342E",
+    color: "#5E433B",
   },
   headerTextCenter: {
     alignItems: "center",
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
   pixelTitle: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 20,
-    color: "#4A342E",
+    color: "#5E433B",
     textAlign: "center",
   },
   headerSubtitle: {
@@ -496,10 +496,22 @@ const styles = StyleSheet.create({
     gap: 20,
     paddingBottom: 40,
   },
-  card: {
-    backgroundColor: "#FFFFFF",
+  createCard: {
+    backgroundColor: "#F6E3BD",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
+    padding: 15,
+  },
+  joinCard: {
+    backgroundColor: "#C5D8BA",
+    borderWidth: 2,
+    borderColor: "#5E433B",
+    padding: 15,
+  },
+  selectCard: {
+    backgroundColor: "#FFFDF9",
+    borderWidth: 2,
+    borderColor: "#5E433B",
     padding: 15,
   },
   cardHeader: {
@@ -511,7 +523,7 @@ const styles = StyleSheet.create({
   pixelCardTitle: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 16,
-    color: "#4A342E",
+    color: "#5E433B",
   },
   playIcon: {
     width: 28,
@@ -524,25 +536,25 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
   },
   pixelInput: {
-    backgroundColor: "#DEE8D5",
+    backgroundColor: "#F4F0E8",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 12,
     fontSize: 14,
-    color: "#3E2723",
+    color: "#5E433B",
     fontWeight: "bold",
     marginBottom: 10,
   },
   pixelInputTouch: {
-    backgroundColor: "#DEE8D5",
+    backgroundColor: "#F4F0E8",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 12,
     marginBottom: 5,
   },
   inputText: {
     fontSize: 14,
-    color: "#3E2723",
+    color: "#5E433B",
     fontWeight: "bold",
   },
   emptyText: {
@@ -553,9 +565,9 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   historyItem: {
-    backgroundColor: "#FFF8D6",
+    backgroundColor: "#F6E3BD",
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 12,
     marginBottom: 10,
   },
