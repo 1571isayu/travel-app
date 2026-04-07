@@ -3,105 +3,78 @@ import {
   useFonts,
 } from "@expo-google-fonts/press-start-2p";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { btnStyles, COLORS, texts } from "../constants/theme";
+
+
 
 export default function StartScreen() {
   const router = useRouter();
+  //字體載入
   let [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
   });
 
-  // 控制 "PRESS START" 閃爍的透明度
-  const opacity = useSharedValue(1);
-
-  useEffect(() => {
-    if (fontsLoaded) {
-      // 讓透明度在 1 和 0 之間來回切換，製造閃爍效果
-      opacity.value = withRepeat(
-        withSequence(
-          withTiming(0, { duration: 500 }),
-          withTiming(1, { duration: 500 }),
-        ),
-        -1, // -1 代表無限循環
-        true,
-      );
-    }
-  }, [fontsLoaded, opacity]);
-
-  const blinkingStyle = useAnimatedStyle(() => {
-    return {
-      opacity: opacity.value,
-    };
-  });
-
+  //字體沒載入前不渲染
   if (!fontsLoaded) return null;
 
   return (
-    // 點擊整個畫面任何地方都可以進入下一頁
-    <Pressable style={styles.container} onPress={() => router.push("/auth")}>
-      {/* 🌟 修改：新的空白正方形框，取代之前的圖片 */}
-      <View style={styles.coverImageFrame} />
 
-      {/* 🌟 修改：新的標題區，分兩行 */}
-      <View style={styles.titleContainer}>
-        <Text style={styles.title}>WELCOME</Text>
-        <Text style={styles.title}>NEW ADVENTURER!</Text>
+    <SafeAreaView style={styles.start_content} >
+      {/*APPIcon圖片*/}
+      <View style={styles.img_appIcon} />
+
+      <View style={styles.bottom_container}>
+        {/*title*/}
+        <Text style={texts.title}>
+          WELCOME{"\n"}NEW ADVENTURER!
+        </Text>
+        {/*btn*/}
+        <Pressable
+          onPress={() => router.push("/auth")}
+          style={({ pressed }) => [
+            btnStyles.button_bg,
+            pressed && { backgroundColor: "#D6631D", transform: [{ translateY: 2 }] }
+          ]}
+        >
+          <Text style={texts.btn_text}>START</Text>
+        </Pressable>
       </View>
 
-      {/* 閃爍的 PRESS START (保持不變) */}
-      <Animated.View style={[styles.startContainer, blinkingStyle]}>
-        <Text style={styles.startText}>- PRESS START -</Text>
-      </Animated.View>
-    </Pressable>
+    </SafeAreaView>
   );
 }
 
+// --- 🎨 樣式表 ---
 const styles = StyleSheet.create({
-  container: {
+
+  start_content: {
     flex: 1,
-    backgroundColor: "#F4F0E8",
+    backgroundColor: COLORS.bg,
     alignItems: "center",
-    justifyContent: "space-around", // 讓元素均勻分佈
-    paddingVertical: 50,
+    justifyContent: "space-around",
+    paddingVertical: 120,
+    paddingHorizontal: 60,
+
   },
-  // 🌟 修改：新的空白正方形框樣式，白色實心、棕色粗邊框
-  coverImageFrame: {
-    width: 200,
-    height: 200,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 4,
-    borderColor: "#5E433B",
-    marginTop: 30, // 調整與頂部的間距
+  img_appIcon: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: COLORS.bg2,
+    borderWidth: 2,
+    borderColor: COLORS.line,
+    borderRadius: 5,
+    shadowColor: "#5E433B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
   },
-  titleContainer: {
+  bottom_container: {
+    width: "100%",
     alignItems: "center",
-    marginVertical: 10, // 調整與框的間距
+    gap: 20,
   },
-  title: {
-    fontFamily: "PressStart2P_400Regular",
-    fontSize: 16, // 🌟 修改：縮小字體以匹配新文字
-    color: "#5E433B",
-    textShadowColor: "rgba(0, 0, 0, 0.2)",
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 1,
-    lineHeight: 24, // 🌟 修改：調整行高
-    textAlign: "center", // 🌟 新增：確保文字置中
-  },
-  startContainer: {
-    marginBottom: 20,
-  },
-  startText: {
-    fontFamily: "PressStart2P_400Regular",
-    fontSize: 16,
-    color: "#EC7424",
-    marginBottom: 50,
-  },
+
 });

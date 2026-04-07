@@ -3,8 +3,7 @@
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
  */
 
-import { Platform } from 'react-native';
-
+import { Platform, StyleSheet } from 'react-native';
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
 
@@ -50,4 +49,89 @@ export const Fonts = Platform.select({
     rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
+});
+
+// 🌟 定義顏色常數
+export const COLORS = {
+  line: "#5E433B",
+  line2: "#8D6E63",
+  primary: "#EC7424",
+  primary_pressed: "#D6631D",
+  secondary: "#F6E3BD",
+  disable: "#C5D8BA", // 修正：補上 # 號
+  bg: "#F4F0E8",
+  bg2: "#FFFDF9",
+  white: "#FFFFFF",
+};
+//文字樣式
+export const texts = StyleSheet.create({
+  title: {
+    fontFamily: "PressStart2P_400Regular",
+    fontSize: 16,
+    color: COLORS.line,
+    textShadowColor: "rgba(94, 67, 59, 0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 1,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  title2: {
+    fontFamily: "PressStart2P_400Regular",
+    fontSize: 12,
+    color: COLORS.line,
+    textShadowColor: "rgba(94, 67, 59, 0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 1,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  btn_text: {
+    fontFamily: "PressStart2P_400Regular",
+    fontSize: 16,
+    color: COLORS.bg2,
+    textShadowColor: "rgba(94, 67, 59, 0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 1,
+    paddingTop: 4,
+  },
+  btn_text2: {
+    fontFamily: "PressStart2P_400Regular",
+    fontSize: 12,
+    color: COLORS.bg2,
+    textShadowColor: "rgba(94, 67, 59, 0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 1,
+    paddingTop: 4,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: COLORS.line2,
+    fontWeight: "bold",
+  },
+  
+});
+
+
+export const btnStyles = StyleSheet.create({
+  // 🌟 這就是妳的「通用像素按鈕」基礎樣式
+  button_bg: {
+    width: "100%",
+    height: 55,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+    borderWidth: 2,
+    borderColor: COLORS.line,
+    shadowColor: COLORS.line,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
+  },
+
+
 });

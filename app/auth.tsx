@@ -3,26 +3,25 @@ import {
   useFonts,
 } from "@expo-google-fonts/press-start-2p";
 import { useRouter } from "expo-router";
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-} from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  // 🌟 修改：引入內建元件
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
-  View,
+  View
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { btnStyles, COLORS, texts } from "../constants/theme";
 import { auth, db } from "../firebaseConfig";
+
+
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -31,10 +30,12 @@ export default function AuthScreen() {
   const [password, setPassword] = useState("");
   const [isLoginMode, setIsLoginMode] = useState(false);
 
+  //字體載入
   let [fontsLoaded] = useFonts({
     PressStart2P_400Regular,
   });
 
+  //驗證邏輯
   const handleAuth = async () => {
     if (!email || !password) {
       Alert.alert("錯誤", "請輸入信箱與密碼！");
@@ -73,169 +74,148 @@ export default function AuthScreen() {
   if (!fontsLoaded) return null;
 
   return (
-    // 🌟 修改 1：使用內建 KeyboardAvoidingView 解決報錯
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      {/* 🌟 修改 2：使用 ScrollView 包裹內容，確保鍵盤彈起時可捲動 */}
-      <ScrollView 
-        contentContainerStyle={styles.innerContainer}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.auth_content}>
+      {/* 🌟 修改 1：使用內建 KeyboardAvoidingView 解決報錯 */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
-        <View style={styles.iconBox} />
-
-        <Text style={styles.mainTitle}>
-          {isLoginMode
-            ? "WELCOME BACK TO\nTHE ADVENTURE!"
-            : "WELCOME\nNEW ADVENTURER!"}
-        </Text>
-        <Text style={styles.subTitle}>
-          {isLoginMode ? "請登入以存取冒險紀錄" : "請註冊以加入冒險"}
-        </Text>
-
-        <View style={styles.card}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor="#8D6E63"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#8D6E63"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleAuth}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.buttonText}>
-                {isLoginMode ? "LOGIN" : "SIGN UP"}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.switchModeBtn}
-            onPress={() => setIsLoginMode(!isLoginMode)}
-          >
-            <Text style={styles.switchModeText}>
-              {isLoginMode ? "新來的冒險家？點此註冊" : "已經有帳號了？點此登入"}
+        {/* 🌟 修改 2：使用 ScrollView 包裹內容，確保鍵盤彈起時可捲動 */}
+        <ScrollView
+          contentContainerStyle={styles.innerContainer}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+          alwaysBounceVertical={false}
+        >
+          <View style={styles.img_appIcon} />
+          <View style={styles.text_container}>
+            <Text style={texts.title2}>
+              {isLoginMode
+                ? "WELCOME BACK TO\nTHE ADVENTURE!"
+                : "WELCOME\nNEW ADVENTURER!"}
             </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <Text style={texts.subtitle}>
+              {isLoginMode ? "請登入以存取冒險紀錄" : "請註冊以加入冒險"}
+            </Text>
+          </View>
+          <View style={styles.signUp_container}>
+            <TextInput
+              style={styles.textField}
+              placeholder="Email"
+              placeholderTextColor="#8D6E63"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+
+            <TextInput
+              style={styles.textField}
+              placeholder="Password"
+              placeholderTextColor="#8D6E63"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+
+            <Pressable
+              onPress={handleAuth}
+              style={({ pressed }) => [
+                btnStyles.button_bg,
+                pressed && { backgroundColor: "#D6631D", transform: [{ translateY: 2 }] },
+              ]}
+            >
+              <Text style={texts.btn_text2}>
+                {isLoginMode ? "LOGIN ▶" : "SIGN UP ▶"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setIsLoginMode(!isLoginMode)}
+              style={({ pressed }) => [
+                styles.btn_signUp_subtitle,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Text style={styles.signUp_subtitle}>
+                {isLoginMode ? "新來的冒險家？點此註冊" : "已經有帳號了？點此登入"}
+              </Text>
+            </Pressable>
+
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView >
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  auth_content: {
     flex: 1,
-    backgroundColor: "#F4F0E8",
+    backgroundColor: COLORS.bg,
   },
   innerContainer: {
     // 🌟 使用 flexGrow 確保內容垂直置中且可捲動
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    paddingHorizontal: 50,
+    paddingVertical: 40,
+    gap: 40,
   },
-  iconBox: {
-    width: 70,
-    height: 70,
-    backgroundColor: "#FFFFFF",
+  img_appIcon: {
+    width: 80,
+    aspectRatio: 1,
+    backgroundColor: COLORS.bg2,
     borderWidth: 2,
-    borderColor: "#5E433B",
-    borderRadius: 6,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
+    borderColor: COLORS.line,
+    borderRadius: 5,
+    shadowColor: COLORS.line,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 4,
   },
-  mainTitle: {
-    fontFamily: "PressStart2P_400Regular",
-    fontSize: 14,
-    color: "#5E433B",
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 10,
-  },
-  subTitle: {
-    fontSize: 12,
-    color: "#8D6E63",
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 25,
-  },
-  card: {
-    backgroundColor: "white",
-    width: "100%",
-    maxWidth: 320,
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    padding: 25,
+  text_container: {
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 6, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 0,
-    elevation: 5,
+    gap: 5,
   },
-  input: {
+  signUp_container: {
+    backgroundColor: COLORS.bg2,
     width: "100%",
-    backgroundColor: "#F4F0E8",
+    height: "auto",
     borderWidth: 2,
-    borderColor: "#5E433B",
+    borderColor: COLORS.line,
+    paddingHorizontal: 20,
+    paddingVertical: 30,
+    alignItems: "center",
+    shadowColor: COLORS.line,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
+  },
+  textField: {
+    width: "100%",
+    backgroundColor: COLORS.bg,
+    borderWidth: 2,
+    borderColor: COLORS.line,
     padding: 12,
     marginBottom: 20,
     fontSize: 14,
     fontWeight: "bold",
-    color: "#5E433B",
+    color: COLORS.line,
   },
-  actionButton: {
-    backgroundColor: "#EC7424",
-    width: "100%",
-    paddingVertical: 15,
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    alignItems: "center",
-    marginTop: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 0,
-    elevation: 3,
+
+  btn_signUp_subtitle: {
+    paddingTop: 20,
   },
-  buttonText: {
-    fontFamily: "PressStart2P_400Regular",
-    fontSize: 14,
-    color: "#FFF",
-  },
-  switchModeBtn: {
-    marginTop: 25,
-    padding: 10,
-  },
-  switchModeText: {
+  signUp_subtitle: {
     fontSize: 12,
+    color: COLORS.line2,
     fontWeight: "bold",
-    color: "#8D6E63",
     textDecorationLine: "underline",
-    textAlign: "center",
   },
+
 });
