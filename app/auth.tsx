@@ -48,9 +48,18 @@ export default function AuthScreen() {
         const user = userCredential.user;
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists() && userDocSnap.data().isSetupComplete) {
-          router.replace("/home");
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          console.log("從資料庫讀取到的資料:", userData); // 🌟 這裡可以看到到底有沒有讀到 true
+          // 🌟 關鍵判斷：只有當 isSetupComplete 為 true 時才進入首頁
+          if (userData.isSetupComplete === true) {
+            router.replace("/home");
+          } else {
+            // 否則視為尚未完成設定的角色
+            router.replace("/setup");
+          }
         } else {
+          // 如果資料庫根本沒這個人的資料，也導向設定頁面
           router.replace("/setup");
         }
       } else {

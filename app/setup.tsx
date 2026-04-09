@@ -87,6 +87,8 @@ export default function SetupScreen() {
             displayName: name,
             photoURL: avatarUri,
             updatedAt: new Date(),
+            // 🌟 核心修正：一定要確保這行有被寫進去，且大小寫正確！
+            isSetupComplete: true,
           },
           { merge: true },
         );

@@ -58,10 +58,20 @@ export const COLORS = {
   primary: "#EC7424",
   primary_pressed: "#D6631D",
   secondary: "#F6E3BD",
-  disable: "#C5D8BA", // 修正：補上 # 號
+  disable: "#C5D8BA",
   bg: "#F4F0E8",
   bg2: "#FFFDF9",
-  white: "#FFFFFF",
+};
+
+export const COLORS_dark = {
+  line: "#F2EAA7",
+  line2: "#BBB36E",
+  primary: "#9B6F4B",
+  primary_pressed: "#b18663",
+  secondary: "#7C7436",
+  disable: "#695443", // 修正：補上 # 號
+  bg: "#393F2F",
+  bg2: "#454E47",
 };
 //文字樣式
 export const texts = StyleSheet.create({
@@ -108,7 +118,7 @@ export const texts = StyleSheet.create({
     color: COLORS.line2,
     fontWeight: "bold",
   },
-  
+
 });
 
 

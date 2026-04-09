@@ -9,7 +9,10 @@ export default function TabLayout() {
 
   return (
     <MenuProvider onOpen={() => setMenuVisible(true)}>
-      <Tabs screenOptions={{ headerShown: false /* ...其他設定... */ }}>
+      <Tabs screenOptions={{
+        headerShown: false,
+        tabBarShowLabel: false
+      }}>
         <Tabs.Screen
           name="adventure"
           options={{

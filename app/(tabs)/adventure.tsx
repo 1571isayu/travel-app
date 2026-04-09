@@ -789,6 +789,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 10,
     maxHeight: "80%",
+    overflow: "visible", // 🌟 確保絕對定位的選單可以「飄」出來
   },
   pixelTitleInput: {
     fontSize: 20,
@@ -827,6 +828,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderWidth: 2,
     borderColor: "#5E433B",
+    position: "absolute",// 🌟 修改：使用絕對定位，浮動在上方
+    top: 110,
+    zIndex: 100, // 確保在最上層
   },
   pixelInput: {
     backgroundColor: "#E8F5E9",
@@ -869,6 +873,9 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     borderTopWidth: 2,
     marginTop: -2,
+    // 🌟 修改：絕對定位
+    position: "absolute",
+    top: "100%", // 緊貼在 Header 下方
   },
   customDropdownItem: {
     flexDirection: "row",

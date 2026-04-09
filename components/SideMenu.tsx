@@ -1,3 +1,4 @@
+import { useApp } from "@/context/AppContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -24,7 +25,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   const router = useRouter();
   const [userName, setUserName] = useState("冒險者");
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-
+  const { theme, isDark, toggleTheme } = useApp();
   // 每次打開選單都重新讀取最新的本機資料
   useEffect(() => {
     if (visible) {
@@ -58,14 +59,15 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
     <Modal visible={visible} transparent animationType="fade">
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable
-          style={styles.menuContainer}
+          // 🌟 這裡使用動態顏色
+          style={[styles.menuContainer, { backgroundColor: theme.bg, borderLeftColor: theme.line }]}
           onPress={(e) => e.stopPropagation()}
         >
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
             <Image
-                  source={require("../img/icon_X.png")}
-                  style={{ width: 18, height: 18 }}
-                />
+              source={require("../img/icon_X.png")}
+              style={{ width: 18, height: 18 }}
+            />
           </TouchableOpacity>
 
           {/* 使用者資訊區 */}
@@ -82,9 +84,9 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
 
             <TouchableOpacity onPress={handleEditPress} style={styles.editBtn}>
               <Image
-                  source={require("../img/icon_edit.png")}
-                  style={{ width: 18, height: 18 }}
-                />
+                source={require("../img/icon_edit.png")}
+                style={{ width: 18, height: 18 }}
+              />
             </TouchableOpacity>
           </View>
 
@@ -99,8 +101,8 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
                 <Text style={styles.itemText}>深色模式</Text>
               </View>
               <Switch
-                value={false}
-                trackColor={{ false: "#D7CCC8", true: "#8D6E63" }}
+                value={isDark}
+                onValueChange={toggleTheme}
               />
             </View>
 

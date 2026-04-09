@@ -1,3 +1,4 @@
+import { useApp } from "@/context/AppContext";
 import {
   PressStart2P_400Regular,
   useFonts,
@@ -18,7 +19,7 @@ export default function StartScreen() {
 
   //字體沒載入前不渲染
   if (!fontsLoaded) return null;
-
+  const { theme, isDark, toggleTheme } = useApp();
   return (
 
     <SafeAreaView style={styles.start_content} >
