@@ -132,7 +132,7 @@ export default function AuthScreen() {
               onPress={handleAuth}
               style={({ pressed }) => [
                 btnStyles.button_bg,
-                pressed && { backgroundColor: "#D6631D", transform: [{ translateY: 2 }] },
+                pressed && { backgroundColor: COLORS.primary_pressed, transform: [{ translateY: 2 }] },
               ]}
             >
               <Text style={texts.btn_text2}>
@@ -165,7 +165,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
   innerContainer: {
-    // 🌟 使用 flexGrow 確保內容垂直置中且可捲動
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",

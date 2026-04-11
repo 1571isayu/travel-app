@@ -73,6 +73,7 @@ export const COLORS_dark = {
   bg: "#393F2F",
   bg2: "#454E47",
 };
+
 //文字樣式
 export const texts = StyleSheet.create({
   title: {
@@ -87,7 +88,7 @@ export const texts = StyleSheet.create({
   },
   title2: {
     fontFamily: "PressStart2P_400Regular",
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.line,
     textShadowColor: "rgba(94, 67, 59, 0.5)",
     textShadowOffset: { width: 0, height: 2 },
@@ -116,6 +117,11 @@ export const texts = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     color: COLORS.line2,
+    fontWeight: "bold",
+  },
+  subtitle2: {
+    fontSize: 14,
+    color: COLORS.line,
     fontWeight: "bold",
   },
 
