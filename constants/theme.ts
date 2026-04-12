@@ -96,6 +96,16 @@ export const texts = StyleSheet.create({
     lineHeight: 20,
     textAlign: "center",
   },
+  title20: {
+    fontFamily: "PressStart2P_400Regular",
+    fontSize: 20,
+    color: COLORS.line,
+    textShadowColor: "rgba(94, 67, 59, 0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 1,
+    lineHeight: 20,
+    textAlign: "center",
+  },
   btn_text: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 16,
@@ -127,6 +137,33 @@ export const texts = StyleSheet.create({
 
 });
 
+//icon樣式
+export const icons = StyleSheet.create({
+  icon14: {
+    width: "auto",
+    height: 14,
+    resizeMode: "contain",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+  },
+  icon18: {
+    width: "auto",
+    height: 18,
+    resizeMode: "contain",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+  },
+  icon22: {
+    width: "auto",
+    height: 22,
+    resizeMode: "contain",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 10,
+  },
+});
 
 export const btnStyles = StyleSheet.create({
   // 🌟 這就是妳的「通用像素按鈕」基礎樣式
@@ -148,6 +185,17 @@ export const btnStyles = StyleSheet.create({
     shadowRadius: 0,
     elevation: 4,
   },
-
-
 });
+export const fieldStyles = StyleSheet.create({
+  textField: {
+    width: "100%",
+    backgroundColor: COLORS.bg,
+    borderWidth: 2,
+    borderColor: COLORS.line,
+    padding: 12,
+    fontSize: 14,
+    fontWeight: "bold",
+    color: COLORS.line,
+  },
+});
+

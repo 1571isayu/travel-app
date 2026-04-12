@@ -3,7 +3,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/press-start-2p";
 import { useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { btnStyles, COLORS, texts } from "../constants/theme";
 
@@ -22,8 +22,10 @@ export default function StartScreen() {
 
     <SafeAreaView style={styles.start_content} >
       {/*APPIcon圖片*/}
-      <View style={styles.img_appIcon} />
-
+      <Image
+        source={require("../img/appIcon.png")}
+        style={styles.img_appIcon}
+      />
       <View style={styles.bottom_container}>
         {/*title*/}
         <Text style={texts.title}>
@@ -58,8 +60,8 @@ const styles = StyleSheet.create({
 
   },
   img_appIcon: {
-    width: "100%",
-    aspectRatio: 1,
+    width: 250,
+    height: 250,
     backgroundColor: COLORS.bg2,
     borderWidth: 2,
     borderColor: COLORS.line,

@@ -209,7 +209,7 @@ export default function SetupScreen() {
             <View style={styles.enter_text}>
               <TextInput
                 style={[texts.subtitle2, styles.text_input_style]}
-                placeholder="請輸入名稱"
+                placeholder="請在此輸入你的名稱"
                 placeholderTextColor="#8D6E63"
                 value={name}
                 onChangeText={setName}

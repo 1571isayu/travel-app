@@ -8,6 +8,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,7 +19,7 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { btnStyles, COLORS, texts } from "../constants/theme";
+import { btnStyles, COLORS, fieldStyles, texts } from "../constants/theme";
 import { auth, db } from "../firebaseConfig";
 
 
@@ -97,7 +98,10 @@ export default function AuthScreen() {
           bounces={true}
           alwaysBounceVertical={false}
         >
-          <View style={styles.img_appIcon} />
+          <Image
+            source={require("../img/appIcon.png")}
+            style={styles.img_appIcon}
+          />
           <View style={styles.text_container}>
             <Text style={texts.title2}>
               {isLoginMode
@@ -110,7 +114,7 @@ export default function AuthScreen() {
           </View>
           <View style={styles.signUp_container}>
             <TextInput
-              style={styles.textField}
+              style={fieldStyles.textField}
               placeholder="Email"
               placeholderTextColor="#8D6E63"
               value={email}
@@ -120,7 +124,7 @@ export default function AuthScreen() {
             />
 
             <TextInput
-              style={styles.textField}
+              style={fieldStyles.textField}
               placeholder="Password"
               placeholderTextColor="#8D6E63"
               value={password}
@@ -174,7 +178,7 @@ const styles = StyleSheet.create({
   },
   img_appIcon: {
     width: 80,
-    aspectRatio: 1,
+    height: 80,
     backgroundColor: COLORS.bg2,
     borderWidth: 2,
     borderColor: COLORS.line,
@@ -203,17 +207,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 4,
-  },
-  textField: {
-    width: "100%",
-    backgroundColor: COLORS.bg,
-    borderWidth: 2,
-    borderColor: COLORS.line,
-    padding: 12,
-    marginBottom: 20,
-    fontSize: 14,
-    fontWeight: "bold",
-    color: COLORS.line,
+    gap: 20,
   },
 
   btn_signUp_subtitle: {

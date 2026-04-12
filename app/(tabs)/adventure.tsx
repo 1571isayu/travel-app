@@ -24,6 +24,7 @@ import {
 } from "react-native";
 
 // 引入 Context (請確認這條路徑是否符合你現在的資料夾結構)
+import { icons } from "@/constants/theme";
 import { MenuContext } from "../../content/MenuContext";
 
 // --- 型別定義 ---
@@ -436,13 +437,21 @@ export default function AdventureScreen() {
         >
           <View style={styles.modalCard}>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <TextInput
-                style={styles.pixelTitleInput}
-                placeholder="請輸入標題"
-                placeholderTextColor="#8D6E63"
-                value={taskTitle}
-                onChangeText={setTaskTitle}
-              />
+              <View style={styles.modalHeader}>
+                <View style={icons.icon14}></View>
+                <TextInput
+                  style={styles.pixelTitleInput}
+                  placeholder="請輸入標題"
+                  placeholderTextColor="#8D6E63"
+                  value={taskTitle}
+                  onChangeText={setTaskTitle}
+                />
+                <Image
+                  source={require("../../img/icon_edit.png")}
+                  style={[icons.icon14,{right: 0}]}
+                />
+              </View>
+
               <Image
                 source={require("../../img/ad_line.png")}
                 style={styles.modalSeparator}
@@ -532,9 +541,7 @@ export default function AdventureScreen() {
                         ? "美食"
                         : taskType === "shopping"
                           ? "購物"
-                          : taskType === "transport"
-                            ? "交通"
-                            : "請選擇行程類型"}
+                          : "請選擇行程類型"}
                   </Text>
                   <Image
                     source={require("../../img/icon_chevronDown.png")}
@@ -674,9 +681,9 @@ const styles = StyleSheet.create({
     flexDirection: "row", // 確保文字水平排列
     alignItems: "center",
     color: "#4A342E",
-    textShadowColor: '#4A342E',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 0.1,
+    textShadowColor: "rgba(94, 67, 59, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
     // 這裡不要寫 fontFamily，交給 renderPixelText 處理
   },
   headerDate: { fontSize: 14, color: "#8D6E63" },
@@ -788,8 +795,14 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     padding: 20,
     borderRadius: 10,
-    maxHeight: "80%",
+    height: 550,
     overflow: "visible", // 🌟 確保絕對定位的選單可以「飄」出來
+  },
+  modalHeader: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   pixelTitleInput: {
     fontSize: 20,
@@ -868,6 +881,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   customDropdownList: {
+    width: "100%",
     backgroundColor: "#FFFDF9",
     borderWidth: 2,
     borderColor: "#5E433B",
