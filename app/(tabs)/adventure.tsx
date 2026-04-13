@@ -837,7 +837,7 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     padding: 20,
     borderRadius: 10,
-    maxHeight: 600,
+    height: 550,
   },
   modalHeader: {
     width: "100%",
@@ -880,8 +880,7 @@ const styles = StyleSheet.create({
 
   // 🌟 新增一個包裹層樣式，用來作為絕對定位的基準
   timePickerWrapper: {
-    position: 'relative',
-    zIndex: 200, // 確保在類型下拉選單之上
+    width: "100%",
   },
 
   inlinePickerContainer: {
@@ -892,12 +891,8 @@ const styles = StyleSheet.create({
     height: 180,
     overflow: "hidden",
     justifyContent: "center",
-
-    // 🌟 核心修改：使用絕對定位，讓它浮起來
-    position: "absolute",
-    top: 50, // 根據時間按鈕的高度微調，讓它出現在按鈕下方
+    top: 10,
     zIndex: 1000,
-
     // 加上一點陰影增加層次感
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
