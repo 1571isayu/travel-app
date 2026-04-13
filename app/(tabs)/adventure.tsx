@@ -117,7 +117,7 @@ export default function AdventureScreen() {
             const diffDays =
               Math.ceil(
                 Math.abs(end.getTime() - start.getTime()) /
-                  (1000 * 60 * 60 * 24),
+                (1000 * 60 * 60 * 24),
               ) + 1;
             setTotalDays(diffDays);
           }
@@ -158,8 +158,8 @@ export default function AdventureScreen() {
 
     let newItems = editingId
       ? items.map((item) =>
-          item.id === editingId ? { ...item, ...taskData } : item,
-        )
+        item.id === editingId ? { ...item, ...taskData } : item,
+      )
       : [...items, { id: Date.now().toString(), ...taskData, imageUris: [] }];
 
     setItems(newItems);
@@ -502,61 +502,79 @@ export default function AdventureScreen() {
               />
 
               <Text style={styles.inputLabel}>時間</Text>
-              <View style={styles.timePickerRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.pixelTimeBox,
-                    showStartPicker && styles.activeTimeBox,
-                  ]}
-                  onPress={() => {
-                    setShowStartPicker(!showStartPicker);
-                    setShowEndPicker(false);
-                  }}
-                >
-                  <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
-                    {formatTime(startTime)}
-                  </Text>
-                </TouchableOpacity>
-                <Text style={[styles.timeTilde, { color: "#4A342E" }]}>~</Text>
-                <TouchableOpacity
-                  style={[
-                    styles.pixelTimeBox,
-                    showEndPicker && styles.activeTimeBox,
-                  ]}
-                  onPress={() => {
-                    setShowEndPicker(!showEndPicker);
-                    setShowStartPicker(false);
-                  }}
-                >
-                  <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
-                    {formatTime(endTime)}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <View style={styles.timePickerWrapper}>
+                <View style={styles.timePickerRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.pixelTimeBox,
+                      showStartPicker && styles.activeTimeBox,
+                    ]}
+                    onPress={() => {
+                      setShowStartPicker(!showStartPicker);
+                      setShowEndPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
+                      {formatTime(startTime)}
+                    </Text>
+                  </TouchableOpacity>
 
-              {(showStartPicker || showEndPicker) && (
-                <View style={styles.inlinePickerContainer}>
-                  <DateTimePicker
-                    value={showStartPicker ? startTime : endTime}
-                    mode="time"
-                    style={{
-                      height: 200, // 與容器同高
-                      transform: [{ scale: 0.8 }], // 🌟 縮小比例，這樣它就不會想把外框撐長
+                  <Text style={[styles.timeTilde, { color: "#4A342E" }]}>~</Text>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.pixelTimeBox,
+                      showEndPicker && styles.activeTimeBox,
+                    ]}
+                    onPress={() => {
+                      setShowEndPicker(!showEndPicker);
+                      setShowStartPicker(false);
                     }}
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    is24Hour={false}
-                    locale="zh_TW" // 🌟 AM/PM 靠左關鍵
-                    textColor="#4A342E"
-                    onChange={(e, d) => {
-                      if (Platform.OS === "android") {
-                        setShowStartPicker(false);
-                        setShowEndPicker(false);
-                      }
-                      if (d) showStartPicker ? setStartTime(d) : setEndTime(d);
-                    }}
-                  />
+                  >
+                    <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
+                      {formatTime(endTime)}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-              )}
+
+                {/* 🌟 選擇器現在會浮動顯示，不會推擠下方的地址輸入框 */}
+                {(showStartPicker || showEndPicker) && (
+                  <View style={styles.inlinePickerContainer}>
+                    <DateTimePicker
+                      value={showStartPicker ? startTime : endTime}
+                      mode="time"
+                      style={{
+                        height: 200,
+                        transform: [{ scale: 0.9 }],
+                      }}
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      is24Hour={false}
+                      locale="zh_TW"
+                      textColor="#4A342E"
+                      onChange={(e, d) => {
+                        if (Platform.OS === "android") {
+                          setShowStartPicker(false);
+                          setShowEndPicker(false);
+                        }
+                        if (d) showStartPicker ? setStartTime(d) : setEndTime(d);
+                      }}
+                    />
+
+                    {/* 🌟 iOS 建議加一個「完成」按鈕來關閉浮窗，因為 iOS Spinner 不會自動收起 */}
+                    {Platform.OS === "ios" && (
+                      <TouchableOpacity
+                        style={{ alignSelf: 'center', marginBottom: 10 }}
+                        onPress={() => {
+                          setShowStartPicker(false);
+                          setShowEndPicker(false);
+                        }}
+                      >
+                        <Text style={{ color: '#EC7424', fontWeight: 'bold' }}>完成</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </View>
 
               <Text style={styles.inputLabel}>地址</Text>
               <TextInput
@@ -860,19 +878,34 @@ const styles = StyleSheet.create({
   pixelTimeText: { fontWeight: "bold" },
   timeTilde: { fontSize: 18 },
 
+  // 🌟 新增一個包裹層樣式，用來作為絕對定位的基準
+  timePickerWrapper: {
+    position: 'relative',
+    zIndex: 200, // 確保在類型下拉選單之上
+  },
+
   inlinePickerContainer: {
     backgroundColor: "#F4F0E8",
-    marginTop: 5,
     borderWidth: 2,
     borderColor: "#5E433B",
     width: "100%",
-    // 1. 🌟 固定高度：這是關鍵，讓它不再隨內容變長
     height: 180,
-    // 2. 🌟 裁切內容：確保滾輪超出 180px 的部分會被隱藏，而不是撐開框框
     overflow: "hidden",
-    paddingHorizontal: 10,
     justifyContent: "center",
+
+    // 🌟 核心修改：使用絕對定位，讓它浮起來
+    position: "absolute",
+    top: 50, // 根據時間按鈕的高度微調，讓它出現在按鈕下方
+    zIndex: 1000,
+
+    // 加上一點陰影增加層次感
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
+
   pixelInput: {
     backgroundColor: "#E8F5E9",
     borderWidth: 2,
