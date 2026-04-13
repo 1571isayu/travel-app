@@ -18,7 +18,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { auth, db } from "../firebaseConfig";
@@ -58,8 +58,12 @@ export default function SetupScreen() {
   }, [mode]);
 
   // 直接切換索引，不使用動畫
-  const goToNext = () => setRealIndex((prev) => (prev + 1) % characterList.length);
-  const goToPrev = () => setRealIndex((prev) => (prev - 1 + characterList.length) % characterList.length);
+  const goToNext = () =>
+    setRealIndex((prev) => (prev + 1) % characterList.length);
+  const goToPrev = () =>
+    setRealIndex(
+      (prev) => (prev - 1 + characterList.length) % characterList.length,
+    );
 
   const handleSaveProfile = async () => {
     if (!name.trim()) return Alert.alert("提示", "請輸入名稱！");
@@ -67,7 +71,9 @@ export default function SetupScreen() {
 
     setLoading(true);
     try {
-      const avatarUri = Image.resolveAssetSource(characterList[realIndex].uri).uri;
+      const avatarUri = Image.resolveAssetSource(
+        characterList[realIndex].uri,
+      ).uri;
 
       // 1. 同步 Firebase
       if (user) {
@@ -134,20 +140,20 @@ export default function SetupScreen() {
           {/* 角色顯示區域：移除所有外框，放大角色 */}
           <View style={styles.character_list}>
             <Pressable
-              onPress={goToNext}
+              onPress={goToPrev}
               style={({ pressed }) => [
                 // 依然保留微幅下移的動感
                 pressed && { transform: [{ translateY: 2 }] },
               ]}
             >
               {({ pressed }) => (
-                <View >
+                <View>
                   {/* 1. 平常顯示的箭頭 */}
                   <Image
                     source={require("../img/caret_left.png")}
                     style={[
                       styles.caret,
-                      { opacity: pressed ? 0 : 1 } // 🌟 按下時隱藏
+                      { opacity: pressed ? 0 : 1 }, // 🌟 按下時隱藏
                     ]}
                   />
 
@@ -157,7 +163,7 @@ export default function SetupScreen() {
                     style={[
                       styles.caret,
                       styles.caret_absolute,
-                      { opacity: pressed ? 1 : 0 } // 🌟 按下時顯示
+                      { opacity: pressed ? 1 : 0 }, // 🌟 按下時顯示
                     ]}
                   />
                 </View>
@@ -179,13 +185,13 @@ export default function SetupScreen() {
               ]}
             >
               {({ pressed }) => (
-                <View >
+                <View>
                   {/* 1. 平常顯示的箭頭 */}
                   <Image
                     source={require("../img/caret_right.png")}
                     style={[
                       styles.caret,
-                      { opacity: pressed ? 0 : 1 } // 🌟 按下時隱藏
+                      { opacity: pressed ? 0 : 1 }, // 🌟 按下時隱藏
                     ]}
                   />
 
@@ -195,14 +201,13 @@ export default function SetupScreen() {
                     style={[
                       styles.caret,
                       styles.caret_absolute,
-                      { opacity: pressed ? 1 : 0 } // 🌟 按下時顯示
+                      { opacity: pressed ? 1 : 0 }, // 🌟 按下時顯示
                     ]}
                   />
                 </View>
               )}
             </Pressable>
           </View>
-
 
           <View style={styles.enter_container}>
             <Text style={texts.title2}>ENTER NAME</Text>
@@ -226,16 +231,17 @@ export default function SetupScreen() {
               disabled={loading}
               style={({ pressed }) => [
                 btnStyles.button_bg,
-                pressed && { backgroundColor: COLORS.primary_pressed, transform: [{ translateY: 2 }] },
+                pressed && {
+                  backgroundColor: COLORS.primary_pressed,
+                  transform: [{ translateY: 2 }],
+                },
               ]}
             >
-
               <Text style={texts.btn_text2}>SAVE ▶</Text>
             </Pressable>
-
           </View>
-        </ScrollView >
-      </KeyboardAvoidingView >
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -256,33 +262,45 @@ const styles = StyleSheet.create({
     gap: 5,
     alignItems: "center",
   },
-
-  // 純角色區域樣式
   character_list: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    width: 320,
-    height: 300,
+    justifyContent: "center", // 改為居中
+    width: "100%", // 改為滿寬
+    height: 250, // 稍微縮小高度確保 iPhone SE 等小手機也放得下
+    marginVertical: 20,
+    paddingHorizontal: 10,
+  },
+  caret_wrapper: {
+    width: 50, // 給予明確的點擊區域寬度
+    height: 50,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10, // 確保箭頭在最上層
+  },
+  caret_inner: {
+    width: 30,
+    height: 30,
+    position: "relative",
   },
   caret: {
     width: 30,
     height: 30,
     resizeMode: "contain",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
   },
   caret_absolute: {
-    position: "absolute",  // 🌟 關鍵：讓這張圖浮在第一張圖正上方
+    position: "absolute",
     top: 0,
     left: 0,
   },
   img_container: {
-    flex: 1
+    flex: 1, // 讓角色圖佔據剩餘空間
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
   img_character: {
-    width: "100%",
+    width: 180, // 限制角色寬度避免擠壓箭頭
     height: "100%",
   },
   enter_container: {
@@ -306,11 +324,10 @@ const styles = StyleSheet.create({
   enter_text: {
     width: "100%",
     alignItems: "center",
-
   },
   text_input_style: {
     textAlign: "center",
-    paddingBottom: 0,      // 🌟 關鍵：強制文字貼近底部
+    paddingBottom: 0, // 🌟 關鍵：強制文字貼近底部
     minWidth: "100%",
   },
 
@@ -318,6 +335,4 @@ const styles = StyleSheet.create({
     width: "100%",
     resizeMode: "contain",
   },
-
 });
-

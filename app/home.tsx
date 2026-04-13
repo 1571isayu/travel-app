@@ -19,22 +19,55 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-//語系設定
+// 語系設定
 LocaleConfig.locales["tw"] = {
-  monthNames: ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月",],
-  monthNamesShort: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月",],
-  dayNames: ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六",],
+  monthNames: [
+    "一月",
+    "二月",
+    "三月",
+    "四月",
+    "五月",
+    "六月",
+    "七月",
+    "八月",
+    "九月",
+    "十月",
+    "十一月",
+    "十二月",
+  ],
+  monthNamesShort: [
+    "1月",
+    "2月",
+    "3月",
+    "4月",
+    "5月",
+    "6月",
+    "7月",
+    "8月",
+    "9月",
+    "10月",
+    "11月",
+    "12月",
+  ],
+  dayNames: [
+    "星期日",
+    "星期一",
+    "星期二",
+    "星期三",
+    "星期四",
+    "星期五",
+    "星期六",
+  ],
   dayNamesShort: ["日", "一", "二", "三", "四", "五", "六"],
   today: "今天",
 };
 LocaleConfig.defaultLocale = "tw";
 
-//型別定義
 type AdventureRecord = {
   id: string;
   name: string;
@@ -43,8 +76,6 @@ type AdventureRecord = {
   peopleCount: number;
 };
 
-//工具函式
-// 🌟 新增：計算下一天的安全小工具 (避免跨時區出現日期少一天的 Bug)
 const getNextDay = (dateStr: string) => {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(y, m - 1, d + 1);
@@ -56,25 +87,28 @@ const getNextDay = (dateStr: string) => {
 
 export default function HomeScreen() {
   const router = useRouter();
-  let [fontsLoaded] = useFonts({ PressStart2P_400Regular, });
+  let [fontsLoaded] = useFonts({ PressStart2P_400Regular });
 
-  // 狀態管理
+  // --- 正式狀態 ---
   const [adventureName, setAdventureName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [markedDates, setMarkedDates] = useState<any>({});
+
+  // --- 暫存狀態 (解決取消變更的 Bug) ---
+  const [tempStartDate, setTempStartDate] = useState("");
+  const [tempEndDate, setTempEndDate] = useState("");
+  const [tempMarkedDates, setTempMarkedDates] = useState<any>({});
+
   const [isDateModalVisible, setDateModalVisible] = useState(false);
   const [joinId, setJoinId] = useState("");
   const [myAdventures, setMyAdventures] = useState<AdventureRecord[]>([]);
 
-  //載入歷史紀錄
   useEffect(() => {
     const loadAdventures = async () => {
       try {
         const savedData = await AsyncStorage.getItem("@my_adventures_v2");
-        if (savedData) {
-          setMyAdventures(JSON.parse(savedData));
-        }
+        if (savedData) setMyAdventures(JSON.parse(savedData));
       } catch (e) {
         console.error("讀取歷史紀錄失敗", e);
       }
@@ -82,84 +116,79 @@ export default function HomeScreen() {
     loadAdventures();
   }, []);
 
-  //選擇日期邏輯
-  // 🌟 更新：自動填滿中間日期的邏輯
+  // 🌟 開啟 Modal 時，先拷貝一份目前的值到暫存區
+  const openDateModal = () => {
+    setTempStartDate(startDate);
+    setTempEndDate(endDate);
+    setTempMarkedDates(markedDates);
+    setDateModalVisible(true);
+  };
+
+  // 🌟 點選日期時，操作的是 temp 狀態
   const onDayPress = (day: any) => {
     const dateString = day.dateString;
 
-    // 1. 還沒選開始，或是想要重選
-    if (!startDate || (startDate && endDate)) {
-      setStartDate(dateString);
-      setEndDate("");
-      setMarkedDates({
+    if (!tempStartDate || (tempStartDate && tempEndDate)) {
+      setTempStartDate(dateString);
+      setTempEndDate("");
+      setTempMarkedDates({
         [dateString]: {
           startingDay: true,
           color: "#EC7424",
           textColor: "white",
         },
       });
-    }
-    // 2. 已經有開始日期，現在選結束日期
-    else if (startDate && !endDate) {
-      if (dateString < startDate) {
-        // 如果點了比開始日更早的日期 -> 把它變成新的開始日
-        setStartDate(dateString);
-        setMarkedDates({
+    } else if (tempStartDate && !tempEndDate) {
+      if (dateString < tempStartDate) {
+        setTempStartDate(dateString);
+        setTempMarkedDates({
           [dateString]: {
             startingDay: true,
-            color: "#EC7424",
-            textColor: "white",
-          },
-        });
-      } else if (dateString === startDate) {
-        // 如果點了同一天 -> 變成單日遊
-        setEndDate(dateString);
-        setMarkedDates({
-          [dateString]: {
-            startingDay: true,
-            endingDay: true,
             color: "#EC7424",
             textColor: "white",
           },
         });
       } else {
-        // 正常選了未來的結束日期 -> 準備塗滿顏色！
-        setEndDate(dateString);
-
-        let newMarkedDates: any = {
-          [startDate]: {
+        setTempEndDate(dateString);
+        let newMarked: any = {
+          [tempStartDate]: {
             startingDay: true,
             color: "#EC7424",
             textColor: "white",
           },
         };
-
-        // 迴圈把中間的每一天都加上淺紅色
-        let currDate = getNextDay(startDate);
+        let currDate = getNextDay(tempStartDate);
         while (currDate < dateString) {
-          newMarkedDates[currDate] = { color: "#fae2d1", textColor: "#5E433B" }; // 淺紅色底，深色字
+          newMarked[currDate] = { color: "#fae2d1", textColor: "#5E433B" };
           currDate = getNextDay(currDate);
         }
-
-        // 標記結束日
-        newMarkedDates[dateString] = {
+        newMarked[dateString] = {
           endingDay: true,
           color: "#EC7424",
           textColor: "white",
         };
-
-        setMarkedDates(newMarkedDates);
+        setTempMarkedDates(newMarked);
       }
     }
   };
 
-  //建立冒險
+  // 🌟 按下確認，才把 temp 同步回正式狀態
+  const confirmDate = () => {
+    if (!tempStartDate || !tempEndDate) {
+      Alert.alert("提示", "請選擇完整的起迄日期！");
+      return;
+    }
+    setStartDate(tempStartDate);
+    setEndDate(tempEndDate);
+    setMarkedDates(tempMarkedDates);
+    setDateModalVisible(false);
+  };
+
   const handleCreate = async () => {
     if (!adventureName || !startDate || !endDate) {
       Alert.alert("提示", "請輸入標題並選擇完整日期區間！");
       return;
     }
-
     const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const newAdventure: AdventureRecord = {
       id: randomId,
@@ -168,19 +197,16 @@ export default function HomeScreen() {
       endDate: endDate,
       peopleCount: 1,
     };
-
     const updatedList = [newAdventure, ...myAdventures];
     setMyAdventures(updatedList);
     await AsyncStorage.setItem(
       "@my_adventures_v2",
       JSON.stringify(updatedList),
     );
-
     setAdventureName("");
     setStartDate("");
     setEndDate("");
     setMarkedDates({});
-
     router.replace({
       pathname: "/(tabs)/adventure",
       params: { id: newAdventure.id, name: newAdventure.name },
@@ -188,10 +214,7 @@ export default function HomeScreen() {
   };
 
   const handleJoin = () => {
-    if (!joinId) {
-      Alert.alert("提示", "請輸入冒險 ID！");
-      return;
-    }
+    if (!joinId) return Alert.alert("提示", "請輸入冒險 ID！");
     router.replace({
       pathname: "/(tabs)/adventure",
       params: { id: joinId, name: `連線隊伍 (${joinId})` },
@@ -204,6 +227,7 @@ export default function HomeScreen() {
       params: { id: adv.id, name: adv.name },
     });
   };
+
   const handleDeleteAdventure = (id: string) => {
     Alert.alert("刪除冒險", "確定要永久刪除這項冒險紀錄嗎？", [
       { text: "取消", style: "cancel" },
@@ -211,37 +235,27 @@ export default function HomeScreen() {
         text: "刪除",
         style: "destructive",
         onPress: async () => {
-          try {
-            const updatedList = myAdventures.filter((adv) => adv.id !== id);
-            setMyAdventures(updatedList);
-            await AsyncStorage.setItem("@my_adventures_v2", JSON.stringify(updatedList));
-          } catch (e) {
-            Alert.alert("錯誤", "刪除失敗");
-          }
+          const updatedList = myAdventures.filter((adv) => adv.id !== id);
+          setMyAdventures(updatedList);
+          await AsyncStorage.setItem(
+            "@my_adventures_v2",
+            JSON.stringify(updatedList),
+          );
         },
       },
     ]);
   };
-  const confirmDate = () => {
-    if (!startDate || !endDate) {
-      Alert.alert("提示", "請選擇完整的起迄日期！");
-      return;
-    }
-    setDateModalVisible(false);
-  };
-  const renderPixelText = (text: string) => {
-    // 將文字拆解，例如 "MY 冒險" 會變成 ["MY ", "冒險"]
-    const parts = text.split(/([\u4e00-\u9fa5]+)/g);
 
+  const renderPixelText = (text: string) => {
+    const parts = text.split(/([\u4e00-\u9fa5]+)/g);
     return parts.map((part, index) => {
       const isChinese = /[\u4e00-\u9fa5]/.test(part);
       return (
         <Text
           key={index}
           style={{
-            // 🌟 如果是中文用 Cubic11，英數用 Press Start 2P
             fontFamily: isChinese ? "Cubic11" : "PressStart2P",
-            fontSize: isChinese ? 16 : 12, // 英文像素通常較大，稍微調小一點視覺才平衡
+            fontSize: isChinese ? 16 : 12,
           }}
         >
           {part}
@@ -250,13 +264,12 @@ export default function HomeScreen() {
     });
   };
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded)
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#5E433B" />
       </View>
     );
-  }
 
   return (
     <SafeAreaView style={styles.home_content}>
@@ -266,57 +279,44 @@ export default function HomeScreen() {
       >
         <View style={styles.innerContainer}>
           <View style={styles.header}>
-
             <TouchableOpacity onPress={() => router.back()}>
               <Image
                 source={require("../img/icon_chevronLeft.png")}
                 style={icons.icon14}
               />
             </TouchableOpacity>
-
-
             <View style={styles.headerTextCenter}>
               <Text style={texts.title2}>ADVENTURE</Text>
               <Text style={texts.subtitle}>開啟你的冒險</Text>
             </View>
             <View style={styles.headerSpacer} />
           </View>
+
           <ScrollView
             style={styles.scrollContainer}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            bounces={true}
-            alwaysBounceVertical={false}
           >
             <View style={styles.scrollContent}>
+              {/* CREATE SECTION */}
               <View style={styles.create_container}>
                 <View style={styles.title_group}>
                   <Text style={texts.title20}>CREATE</Text>
-                  <Pressable
-                    onPress={handleCreate}
-                    style={({ pressed }) => [
-                      // 依然保留微幅下移的動感
-                      pressed && { transform: [{ translateY: 2 }] },
-                    ]}
-                  >
+                  <Pressable onPress={handleCreate}>
                     {({ pressed }) => (
-                      <View >
-                        {/* 1. 平常顯示的箭頭 */}
+                      <View
+                        style={pressed && { transform: [{ translateY: 2 }] }}
+                      >
                         <Image
                           source={require("../img/caret_right.png")}
-                          style={[
-                            styles.caret,
-                            { opacity: pressed ? 0 : 1 } // 🌟 按下時隱藏
-                          ]}
+                          style={[styles.caret, { opacity: pressed ? 0 : 1 }]}
                         />
-
-                        {/* 2. 按下時顯示的箭頭 (絕對定位疊在上面) */}
                         <Image
                           source={require("../img/caret_right_pressed.png")}
                           style={[
                             styles.caret,
                             styles.caret_absolute,
-                            { opacity: pressed ? 1 : 0 } // 🌟 按下時顯示
+                            { opacity: pressed ? 1 : 0 },
                           ]}
                         />
                       </View>
@@ -330,12 +330,13 @@ export default function HomeScreen() {
                   value={adventureName}
                   onChangeText={setAdventureName}
                 />
-                <TouchableOpacity
-                  onPress={() => setDateModalVisible(true)}
-                >
+
+                {/* 🌟 點擊觸發暫存機制 */}
+                <TouchableOpacity onPress={openDateModal}>
                   <Text
-                    style={[fieldStyles.textField,
-                    !startDate && !endDate ? { color: "#8D6E63" } : {},
+                    style={[
+                      fieldStyles.textField,
+                      !startDate && !endDate ? { color: "#8D6E63" } : {},
                     ]}
                   >
                     {startDate && endDate
@@ -343,37 +344,27 @@ export default function HomeScreen() {
                       : "請點擊選擇日期"}
                   </Text>
                 </TouchableOpacity>
-
               </View>
 
+              {/* JOIN SECTION */}
               <View style={styles.join_container}>
                 <View style={styles.title_group}>
                   <Text style={texts.title20}>JOIN</Text>
-                  <Pressable
-                    onPress={handleJoin}
-                    style={({ pressed }) => [
-                      // 依然保留微幅下移的動感
-                      pressed && { transform: [{ translateY: 2 }] },
-                    ]}
-                  >
+                  <Pressable onPress={handleJoin}>
                     {({ pressed }) => (
-                      <View >
-                        {/* 1. 平常顯示的箭頭 */}
+                      <View
+                        style={pressed && { transform: [{ translateY: 2 }] }}
+                      >
                         <Image
                           source={require("../img/caret_right.png")}
-                          style={[
-                            styles.caret,
-                            { opacity: pressed ? 0 : 1 } // 🌟 按下時隱藏
-                          ]}
+                          style={[styles.caret, { opacity: pressed ? 0 : 1 }]}
                         />
-
-                        {/* 2. 按下時顯示的箭頭 (絕對定位疊在上面) */}
                         <Image
                           source={require("../img/caret_right_pressed.png")}
                           style={[
                             styles.caret,
                             styles.caret_absolute,
-                            { opacity: pressed ? 1 : 0 } // 🌟 按下時顯示
+                            { opacity: pressed ? 1 : 0 },
                           ]}
                         />
                       </View>
@@ -390,11 +381,11 @@ export default function HomeScreen() {
                 />
               </View>
 
+              {/* SELECT SECTION */}
               <View style={styles.select_container}>
                 <View style={styles.title_group}>
                   <Text style={texts.title20}>SELECT</Text>
                 </View>
-
                 {myAdventures.length === 0 ? (
                   <Text style={texts.subtitle2}>目前沒有冒險紀錄</Text>
                 ) : (
@@ -405,18 +396,17 @@ export default function HomeScreen() {
                       onPress={() => handleSelectAdventure(adv)}
                     >
                       <View style={styles.historyHeaderRow}>
-
                         <Text style={styles.historyName}>
-                          {/* 🌟 統一調用 renderPixelText，並將 adv.name 傳進去 */}
-                          {renderPixelText(adv.name ? adv.name.toUpperCase() : "UNTITLED")}
+                          {renderPixelText(
+                            adv.name ? adv.name.toUpperCase() : "UNTITLED",
+                          )}
                         </Text>
-                        {/* 🌟 新增：刪除按鈕 */}
                         <TouchableOpacity
                           style={styles.deleteTouch}
                           onPress={() => handleDeleteAdventure(adv.id)}
                         >
                           <Image
-                            source={require("../img/icon_delete.png")} // 請確保你有這張圖，或換成你的 X 圖標
+                            source={require("../img/icon_delete.png")}
                             style={styles.deleteIcon}
                           />
                         </TouchableOpacity>
@@ -424,14 +414,13 @@ export default function HomeScreen() {
                       <Text style={styles.historyDate}>
                         {adv.startDate} ~ {adv.endDate}
                       </Text>
-
                       <View style={styles.historyInfoRow}>
-
                         <Text style={styles.historyInfoText}>
                           <Image
                             source={require("../img/icon_user.png")}
-                            style={{ width: 16, height: 18, }}
-                          /> {adv.peopleCount}人
+                            style={{ width: 16, height: 18 }}
+                          />{" "}
+                          {adv.peopleCount}人
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -443,49 +432,31 @@ export default function HomeScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      <Modal
-        visible={isDateModalVisible}
-        transparent={true}
-        animationType="fade"
-      >
+      {/* DATE MODAL */}
+      <Modal visible={isDateModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={[texts.subtitle2, { textAlign: "center" }]}>
               設定冒險日期
             </Text>
-
             <Calendar
               markingType={"period"}
-              markedDates={markedDates}
-              onDayPress={onDayPress}
+              markedDates={tempMarkedDates} // 🌟 使用 temp
+              onDayPress={onDayPress} // 🌟 使用修正後的邏輯
               theme={{
-                backgroundColor: "#ffffff",
-                calendarBackground: "#ffffff",
-                textSectionTitleColor: "#8D6E63",
                 selectedDayBackgroundColor: "#EC7424",
-                selectedDayTextColor: "#ffffff",
                 todayTextColor: "#EC7424",
                 dayTextColor: "#5E433B",
-                textDisabledColor: "#C5D8BA",
-                arrowColor: "#5E433B",
-                monthTextColor: "#5E433B",
                 textDayFontWeight: "bold",
-                textMonthFontWeight: "bold",
-                textDayHeaderFontWeight: "bold",
-                textDayFontSize: 14,
-                textMonthFontSize: 16,
-                textDayHeaderFontSize: 14,
               }}
             />
-
             <Text style={styles.dateHintText}>
-              {!startDate
+              {!tempStartDate
                 ? "請點選出發日"
-                : !endDate
+                : !tempEndDate
                   ? "請點選結束日"
-                  : `${startDate} 至 ${endDate}`}
+                  : `${tempStartDate} 至 ${tempEndDate}`}
             </Text>
-
             <View style={styles.modalBtnRow}>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalCancelBtn]}
@@ -503,21 +474,21 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView >
+    </SafeAreaView>
   );
 }
+
+// ... Styles 保持不變 ...
 
 const styles = StyleSheet.create({
   home_content: {
     flex: 1,
     backgroundColor: COLORS.bg,
-
   },
   innerContainer: {
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 20,
-
   },
   scrollContainer: {
     flexGrow: 1,
@@ -550,7 +521,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   caret_absolute: {
-    position: "absolute",  // 🌟 關鍵：讓這張圖浮在第一張圖正上方
+    position: "absolute", // 🌟 關鍵：讓這張圖浮在第一張圖正上方
     top: 0,
     left: 0,
   },
@@ -609,7 +580,6 @@ const styles = StyleSheet.create({
     height: "auto",
     gap: 12,
   },
-
 
   historyHeaderRow: {
     flexDirection: "row",
@@ -713,7 +683,6 @@ const styles = StyleSheet.create({
     borderColor: "#4A342E",
     padding: 15,
     borderRadius: 8,
-
   },
   modalTitle: {
     fontFamily: "PressStart2P_400Regular",

@@ -2,10 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
-import {
-  Plus,
-  X
-} from "lucide-react-native";
+import { Plus, X } from "lucide-react-native";
 import React, { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -23,11 +20,9 @@ import {
   View,
 } from "react-native";
 
-// 引入 Context (請確認這條路徑是否符合你現在的資料夾結構)
 import { icons } from "@/constants/theme";
 import { MenuContext } from "../../content/MenuContext";
 
-// --- 型別定義 ---
 type TimelineItemType = {
   id: string;
   day: number;
@@ -44,25 +39,21 @@ export default function AdventureScreen() {
   const { id, name } = useLocalSearchParams();
   const { openMenu } = useContext(MenuContext);
 
-  // 基礎 State
   const [currentDay, setCurrentDay] = useState(1);
   const [totalDays, setTotalDays] = useState(1);
   const [adventureDates, setAdventureDates] = useState({ start: "", end: "" });
   const [items, setItems] = useState<TimelineItemType[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal 與 放大圖片 State
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedFullImage, setSelectedFullImage] = useState<string | null>(
     null,
   );
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // 表單 State
   const [taskTitle, setTaskTitle] = useState("");
   const [taskLocation, setTaskLocation] = useState("");
   const [taskDesc, setTaskDesc] = useState("");
-  // 🌟 修正：預設值改為空字串，才會顯示「請選擇行程類型」
   const [taskType, setTaskType] = useState("");
   const [startTime, setStartTime] = useState(new Date());
   const [endTime, setEndTime] = useState(new Date());
@@ -70,7 +61,6 @@ export default function AdventureScreen() {
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
 
-  // 工具函數
   const formatTime = (date: Date) => {
     const hours = date.getHours().toString().padStart(2, "0");
     const minutes = date.getMinutes().toString().padStart(2, "0");
@@ -83,7 +73,32 @@ export default function AdventureScreen() {
     return parts.length === 3 ? `${parts[1]}.${parts[2]}` : dateStr;
   };
 
-  // 讀取資料
+  // 🌟 新增：開啟「新增行程」Modal 的邏輯 (抓取最後一個時間)
+  const openAddModal = () => {
+    const todayItems = items
+      .filter((i) => i.day === currentDay)
+      .sort((a, b) => a.time.localeCompare(b.time));
+
+    if (todayItems.length > 0) {
+      const lastItem = todayItems[todayItems.length - 1];
+      const lastEndTimeStr = lastItem.time.split("~")[1];
+      const [hours, minutes] = lastEndTimeStr.split(":").map(Number);
+
+      const nextStart = new Date();
+      nextStart.setHours(hours, minutes, 0, 0);
+      const nextEnd = new Date(nextStart);
+      nextEnd.setHours(nextStart.getHours() + 1);
+
+      setStartTime(nextStart);
+      setEndTime(nextEnd);
+    } else {
+      setStartTime(new Date());
+      setEndTime(new Date());
+    }
+    setEditingId(null);
+    setIsModalVisible(true);
+  };
+
   useEffect(() => {
     const fetchAdventureData = async () => {
       try {
@@ -102,7 +117,7 @@ export default function AdventureScreen() {
             const diffDays =
               Math.ceil(
                 Math.abs(end.getTime() - start.getTime()) /
-                (1000 * 60 * 60 * 24),
+                  (1000 * 60 * 60 * 24),
               ) + 1;
             setTotalDays(diffDays);
           }
@@ -124,16 +139,12 @@ export default function AdventureScreen() {
     setTaskTitle("");
     setTaskLocation("");
     setTaskDesc("");
-    // 🌟 修正：關閉時也重置為空字串
     setTaskType("");
-    setStartTime(new Date());
-    setEndTime(new Date());
     setShowStartPicker(false);
     setShowEndPicker(false);
     setShowTypePicker(false);
   };
 
-  // 儲存邏輯
   const handleSaveTask = async () => {
     const taskData = {
       day: currentDay,
@@ -141,15 +152,14 @@ export default function AdventureScreen() {
       title: taskTitle || "未命名行程",
       location: taskLocation,
       desc: taskDesc,
-      // 🌟 修正：如果使用者都沒選，預設存成 "spot"
       type: taskType || "spot",
       isPast: false,
     };
 
     let newItems = editingId
       ? items.map((item) =>
-        item.id === editingId ? { ...item, ...taskData } : item,
-      )
+          item.id === editingId ? { ...item, ...taskData } : item,
+        )
       : [...items, { id: Date.now().toString(), ...taskData, imageUris: [] }];
 
     setItems(newItems);
@@ -157,15 +167,14 @@ export default function AdventureScreen() {
     closeModal();
   };
 
-
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
+
   const handleDeleteTask = (itemId: string) => {
     setDeleteTargetId(itemId);
     setIsDeleteModalVisible(true);
   };
 
-  // 真正執行的刪除動作
   const confirmDelete = async () => {
     if (deleteTargetId) {
       const newItems = items.filter((i) => i.id !== deleteTargetId);
@@ -175,7 +184,34 @@ export default function AdventureScreen() {
       setDeleteTargetId(null);
     }
   };
-  // 多圖選擇邏輯
+
+  // 🌟 修正：明確定義 uriToDelete: string
+  const handleDeleteImage = async (taskId: string, uriToDelete: string) => {
+    Alert.alert("刪除照片", "確定要從此行程中移除這張照片嗎？", [
+      { text: "取消", style: "cancel" },
+      {
+        text: "確定刪除",
+        style: "destructive",
+        onPress: async () => {
+          const updatedItems = items.map((item) => {
+            if (item.id === taskId) {
+              return {
+                ...item,
+                imageUris: item.imageUris?.filter((uri) => uri !== uriToDelete),
+              };
+            }
+            return item;
+          });
+          setItems(updatedItems);
+          await AsyncStorage.setItem(
+            `@timeline_${id}`,
+            JSON.stringify(updatedItems),
+          );
+        },
+      },
+    ]);
+  };
+
   const pickImages = async (itemId: string) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -209,19 +245,17 @@ export default function AdventureScreen() {
         <ActivityIndicator color="#4A342E" />
       </View>
     );
-  const renderPixelText = (text: string) => {
-    // 將文字拆解，例如 "MY 冒險" 會變成 ["MY ", "冒險"]
-    const parts = text.split(/([\u4e00-\u9fa5]+)/g);
 
+  const renderPixelText = (text: string) => {
+    const parts = text.split(/([\u4e00-\u9fa5]+)/g);
     return parts.map((part, index) => {
       const isChinese = /[\u4e00-\u9fa5]/.test(part);
       return (
         <Text
           key={index}
           style={{
-            // 🌟 如果是中文用 Cubic11，英數用 Press Start 2P
             fontFamily: isChinese ? "Cubic11" : "PressStart2P",
-            fontSize: isChinese ? 16 : 12, // 英文像素通常較大，稍微調小一點視覺才平衡
+            fontSize: isChinese ? 16 : 12,
           }}
         >
           {part}
@@ -229,11 +263,10 @@ export default function AdventureScreen() {
       );
     });
   };
+
   return (
     <View style={styles.container}>
-      {/* 頂部 Header */}
       <View style={styles.header}>
-        {/* 🌟 修正這裡：由 router.back() 改為 router.replace() */}
         <TouchableOpacity onPress={() => router.replace("/home")}>
           <Image
             source={require("../../img/icon_chevronLeft.png")}
@@ -241,16 +274,18 @@ export default function AdventureScreen() {
             resizeMode="contain"
           />
         </TouchableOpacity>
-
-
         <View style={styles.headerTitleContainer}>
-          {/* 🌟 標題部分：根據輸入內容自動切換字體 */}
           <Text style={styles.headerTitle}>
-            {renderPixelText(name ? name.toString().toUpperCase() : "MY ADVENTURE")}
+            {renderPixelText(
+              name ? name.toString().toUpperCase() : "MY ADVENTURE",
+            )}
           </Text>
-
-          {/* 🌟 日期部分：通常是數字跟符號，直接用 Press Start 2P 即可 */}
-          <Text style={[styles.headerDate, { fontFamily: "PressStart2P", fontSize: 10, marginTop: 5 }]}>
+          <Text
+            style={[
+              styles.headerDate,
+              { fontFamily: "PressStart2P", fontSize: 10, marginTop: 5 },
+            ]}
+          >
             {`${formatShortDate(adventureDates.start)}~${formatShortDate(adventureDates.end)}`}
           </Text>
         </View>
@@ -263,7 +298,6 @@ export default function AdventureScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 天數切換欄 */}
       <View style={styles.daySelectorContainer}>
         <ScrollView
           horizontal
@@ -297,116 +331,123 @@ export default function AdventureScreen() {
         style={styles.separatorLine}
       />
 
-      {/* 行程列表與時間軸 */}
       <ScrollView
         style={styles.timelineScroll}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.timelineWrapper}>
-          <View style={styles.verticalLine} />
-          {currentDayItems.map((item) => (
-            <View key={item.id} style={styles.timelineRow}>
-              <View style={styles.timelineDot} />
-              <View style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardTime}>{item.time}</Text>
+          {currentDayItems.length > 0 && <View style={styles.verticalLine} />}
+          {currentDayItems.length > 0 ? (
+            currentDayItems.map((item) => (
+              <View key={item.id} style={styles.timelineRow}>
+                <View style={styles.timelineDot} />
+                <View style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTime}>{item.time}</Text>
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setEditingId(item.id);
+                          setTaskTitle(item.title);
+                          setTaskLocation(item.location || "");
+                          setTaskDesc(item.desc || "");
+                          setTaskType(item.type);
 
-                  <View style={styles.cardActions}>
+                          // 🌟 修正：編輯時解析舊時間
+                          const [sTimeStr, eTimeStr] = item.time.split("~");
+                          const [sH, sM] = sTimeStr.split(":").map(Number);
+                          const [eH, eM] = eTimeStr.split(":").map(Number);
+                          const d1 = new Date();
+                          d1.setHours(sH, sM, 0, 0);
+                          const d2 = new Date();
+                          d2.setHours(eH, eM, 0, 0);
+                          setStartTime(d1);
+                          setEndTime(d2);
+
+                          setIsModalVisible(true);
+                        }}
+                        style={styles.actionBtn}
+                      >
+                        <Image
+                          source={require("../../img/icon_edit.png")}
+                          style={{ height: 14, aspectRatio: 1 }}
+                          resizeMode="contain"
+                        />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteTask(item.id)}
+                        style={styles.actionBtn}
+                      >
+                        <Image
+                          source={require("../../img/icon_delete.png")}
+                          style={{ height: 14, aspectRatio: 1 }}
+                          resizeMode="contain"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <View style={styles.cardFooter}>
                     <TouchableOpacity
                       onPress={() => {
-                        setEditingId(item.id);
-                        setTaskTitle(item.title);
-                        setTaskLocation(item.location || "");
-                        setTaskDesc(item.desc || "");
-                        setTaskType(item.type);
-                        setIsModalVisible(true);
+                        if (!item.location)
+                          return Alert.alert(
+                            "提示",
+                            "這個行程還沒有輸入地址喔！",
+                          );
+                        Linking.openURL(
+                          `http://maps.google.com/?q=${encodeURIComponent(item.location)}`,
+                        );
                       }}
-                      style={styles.actionBtn}
                     >
                       <Image
-                        source={require("../../img/icon_edit.png")}
-                        style={{ height: 14, aspectRatio: 1 }}
+                        source={require("../../img/icon_mapLink.png")}
+                        style={{ height: 18, aspectRatio: 1 }}
                         resizeMode="contain"
                       />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleDeleteTask(item.id)}
-                      style={styles.actionBtn}
-                    >
+                    <TouchableOpacity onPress={() => pickImages(item.id)}>
                       <Image
-                        source={require("../../img/icon_delete.png")}
-                        style={{ height: 14, aspectRatio: 1 }}
+                        source={require("../../img/icon_image.png")}
+                        style={{ height: 18, aspectRatio: 1 }}
                         resizeMode="contain"
                       />
                     </TouchableOpacity>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={{ flex: 1 }}
+                    >
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        {item.imageUris?.map((uri, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            onPress={() => setSelectedFullImage(uri)}
+                            onLongPress={() => handleDeleteImage(item.id, uri)}
+                            delayLongPress={500}
+                          >
+                            <Image source={{ uri }} style={styles.miniImage} />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
                   </View>
                 </View>
-
-                <Text style={styles.cardTitle}>{item.title}</Text>
-
-                <View style={styles.cardFooter}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      // 1. 先檢查有沒有地址
-                      if (!item.location) {
-                        Alert.alert("提示", "這個行程還沒有輸入地址喔！");
-                        return;
-                      }
-
-                      // 2. 將地址轉換成網址安全格式（處理空白與中文字）
-                      const encodedAddress = encodeURIComponent(item.location);
-
-                      // 3. 使用 Google Maps 官方的通用搜尋網址
-                      const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-
-                      Linking.openURL(googleMapsUrl).catch(() => {
-                        Alert.alert("錯誤", "無法開啟地圖應用程式");
-                      });
-                    }}
-                  >
-                    <Image
-                      source={require("../../img/icon_mapLink.png")}
-                      style={{ height: 18, aspectRatio: 1 }}
-                      resizeMode="contain"
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => pickImages(item.id)}>
-                    <Image
-                      source={require("../../img/icon_image.png")}
-                      style={{ height: 18, aspectRatio: 1 }}
-                      resizeMode="contain"
-                    />
-                  </TouchableOpacity>
-
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={{ flex: 1 }}
-                  >
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      {item.imageUris?.map((uri, idx) => (
-                        <TouchableOpacity
-                          key={idx}
-                          onPress={() => setSelectedFullImage(uri)}
-                        >
-                          <Image source={{ uri }} style={styles.miniImage} />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyNotice}>
+                <Text style={styles.emptyText}>這天還沒寫行程喔！</Text>
               </View>
             </View>
-          ))}
+          )}
         </View>
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* 懸浮新增按鈕 */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setIsModalVisible(true)}
-      >
+      {/* 🌟 修正：使用自定義的 openAddModal */}
+      <TouchableOpacity style={styles.fab} onPress={openAddModal}>
         <Plus size={32} color="#FFF" />
       </TouchableOpacity>
 
@@ -436,7 +477,10 @@ export default function AdventureScreen() {
           style={styles.modalOverlay}
         >
           <View style={styles.modalCard}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.modalHeader}>
                 <View style={icons.icon14}></View>
                 <TextInput
@@ -448,7 +492,7 @@ export default function AdventureScreen() {
                 />
                 <Image
                   source={require("../../img/icon_edit.png")}
-                  style={[icons.icon14,{right: 0}]}
+                  style={[icons.icon14, { right: 0 }]}
                 />
               </View>
 
@@ -495,8 +539,13 @@ export default function AdventureScreen() {
                   <DateTimePicker
                     value={showStartPicker ? startTime : endTime}
                     mode="time"
+                    style={{
+                      height: 200, // 與容器同高
+                      transform: [{ scale: 0.8 }], // 🌟 縮小比例，這樣它就不會想把外框撐長
+                    }}
                     display={Platform.OS === "ios" ? "spinner" : "default"}
-                    is24Hour={true}
+                    is24Hour={false}
+                    locale="zh_TW" // 🌟 AM/PM 靠左關鍵
                     textColor="#4A342E"
                     onChange={(e, d) => {
                       if (Platform.OS === "android") {
@@ -519,9 +568,7 @@ export default function AdventureScreen() {
               />
 
               <Text style={styles.inputLabel}>類型</Text>
-
               <View style={{ position: "relative", zIndex: 10 }}>
-                {/* 點擊展開的標題框 */}
                 <TouchableOpacity
                   style={[
                     styles.customDropdownHeader,
@@ -548,51 +595,36 @@ export default function AdventureScreen() {
                     style={styles.dropdownIcon}
                   />
                 </TouchableOpacity>
-
-                {/* 展開後的選單列表 */}
                 {showTypePicker && (
                   <View style={styles.customDropdownList}>
-                    <TouchableOpacity
-                      style={styles.customDropdownItem}
-                      onPress={() => {
-                        setTaskType("spot");
-                        setShowTypePicker(false);
-                      }}
-                    >
-                      <Text style={styles.customDropdownItemText}>景點</Text>
-                      <Image
-                        source={require("../../img/icon_star.png")}
-                        style={styles.dropdownIcon}
-                      />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.customDropdownItem}
-                      onPress={() => {
-                        setTaskType("food");
-                        setShowTypePicker(false);
-                      }}
-                    >
-                      <Text style={styles.customDropdownItemText}>美食</Text>
-                      <Image
-                        source={require("../../img/icon_food.png")}
-                        style={styles.dropdownIcon}
-                      />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.customDropdownItem}
-                      onPress={() => {
-                        setTaskType("shopping");
-                        setShowTypePicker(false);
-                      }}
-                    >
-                      <Text style={styles.customDropdownItemText}>購物</Text>
-                      <Image
-                        source={require("../../img/icon_shopping.png")}
-                        style={styles.dropdownIcon}
-                      />
-                    </TouchableOpacity>
+                    {["spot", "food", "shopping"].map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        style={styles.customDropdownItem}
+                        onPress={() => {
+                          setTaskType(type);
+                          setShowTypePicker(false);
+                        }}
+                      >
+                        <Text style={styles.customDropdownItemText}>
+                          {type === "spot"
+                            ? "景點"
+                            : type === "food"
+                              ? "美食"
+                              : "購物"}
+                        </Text>
+                        <Image
+                          source={
+                            type === "spot"
+                              ? require("../../img/icon_star.png")
+                              : type === "food"
+                                ? require("../../img/icon_food.png")
+                                : require("../../img/icon_shopping.png")
+                          }
+                          style={styles.dropdownIcon}
+                        />
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
               </View>
@@ -612,9 +644,7 @@ export default function AdventureScreen() {
                   style={[styles.pixelBtn, { backgroundColor: "#D7CCC8" }]}
                   onPress={closeModal}
                 >
-                  <Text style={[styles.pixelBtnText, { color: "#4A342E" }]}>
-                    CANCEL
-                  </Text>
+                  <Text style={styles.pixelBtnText}>CANCEL</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.pixelBtn, { backgroundColor: "#F39C12" }]}
@@ -629,19 +659,23 @@ export default function AdventureScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-      {/* 自定義像素風刪除確認框 */}
+
+      {/* 刪除確認 Modal */}
       <Modal visible={isDeleteModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { alignItems: 'center' }]}>
-            <Text style={[styles.pixelTitleInput, { fontSize: 18 }]}>DELETE？</Text>
-
+          <View
+            style={[styles.modalCard, { alignItems: "center", height: "auto" }]}
+          >
+            <Text style={[styles.pixelTitleInput, { fontSize: 18 }]}>
+              DELETE？
+            </Text>
             <Image
               source={require("../../img/ad_line.png")}
               style={styles.modalSeparator}
             />
-
-            <Text style={{ color: "#8D6E63", marginBottom: 20 }}>刪除後此行程無法復原！</Text>
-
+            <Text style={{ color: "#8D6E63", marginBottom: 20 }}>
+              刪除後此行程無法復原！
+            </Text>
             <View style={styles.pixelBtnRow}>
               <TouchableOpacity
                 style={[styles.pixelBtn, { backgroundColor: "#D7CCC8" }]}
@@ -649,7 +683,6 @@ export default function AdventureScreen() {
               >
                 <Text style={styles.pixelBtnText}>CANCEL</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={[styles.pixelBtn, { backgroundColor: "#E74C3C" }]}
                 onPress={confirmDelete}
@@ -664,7 +697,6 @@ export default function AdventureScreen() {
   );
 }
 
-// 樣式設定
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FDFBF0" },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
@@ -677,15 +709,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   headerTitleContainer: { alignItems: "center" },
-  headerTitle: {
-    flexDirection: "row", // 確保文字水平排列
-    alignItems: "center",
-    color: "#4A342E",
-    textShadowColor: "rgba(94, 67, 59, 0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
-    // 這裡不要寫 fontFamily，交給 renderPixelText 處理
-  },
+  headerTitle: { flexDirection: "row", alignItems: "center", color: "#4A342E" },
   headerDate: { fontSize: 14, color: "#8D6E63" },
   daySelectorContainer: { marginVertical: 10 },
   dayScrollContent: { paddingHorizontal: 20, gap: 10 },
@@ -708,7 +732,7 @@ const styles = StyleSheet.create({
   },
   verticalLine: {
     position: "absolute",
-    left: 27,
+    left: 25.5,
     top: 0,
     bottom: 0,
     width: 6,
@@ -795,8 +819,7 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     padding: 20,
     borderRadius: 10,
-    height: 550,
-    overflow: "visible", // 🌟 確保絕對定位的選單可以「飄」出來
+    maxHeight: 600,
   },
   modalHeader: {
     width: "100%",
@@ -836,25 +859,25 @@ const styles = StyleSheet.create({
   activeTimeBox: { backgroundColor: "#F4D03F" },
   pixelTimeText: { fontWeight: "bold" },
   timeTilde: { fontSize: 18 },
+
   inlinePickerContainer: {
     backgroundColor: "#F4F0E8",
-    marginTop: 10,
+    marginTop: 5,
     borderWidth: 2,
     borderColor: "#5E433B",
-    position: "absolute",// 🌟 修改：使用絕對定位，浮動在上方
-    top: 110,
-    zIndex: 100, // 確保在最上層
+    width: "100%",
+    // 1. 🌟 固定高度：這是關鍵，讓它不再隨內容變長
+    height: 180,
+    // 2. 🌟 裁切內容：確保滾輪超出 180px 的部分會被隱藏，而不是撐開框框
+    overflow: "hidden",
+    paddingHorizontal: 10,
+    justifyContent: "center",
   },
   pixelInput: {
     backgroundColor: "#E8F5E9",
     borderWidth: 2,
     borderColor: "#5E433B",
     padding: 10,
-  },
-  pickerWrapper: {
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    backgroundColor: "#FFFDF9",
   },
   pixelTextArea: { height: 80, textAlignVertical: "top" },
   pixelBtnRow: { flexDirection: "row", gap: 10, marginTop: 20 },
@@ -875,21 +898,15 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     padding: 12,
   },
-  customDropdownText: {
-    color: "#8D6E63",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+  customDropdownText: { color: "#8D6E63", fontSize: 16, fontWeight: "bold" },
   customDropdownList: {
     width: "100%",
     backgroundColor: "#FFFDF9",
     borderWidth: 2,
     borderColor: "#5E433B",
-    borderTopWidth: 2,
-    marginTop: -2,
-    // 🌟 修改：絕對定位
     position: "absolute",
-    top: "100%", // 緊貼在 Header 下方
+    top: "100%",
+    zIndex: 1000,
   },
   customDropdownItem: {
     flexDirection: "row",
@@ -904,15 +921,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  dropdownIcon: {
-    width: 16,
-    height: 16,
-    resizeMode: "contain",
+  dropdownIcon: { width: 16, height: 16, resizeMode: "contain" },
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 25,
   },
-  // 可以在樣式表裡加一個專屬刪除按鈕的顏色
-  deleteBtn: {
-    backgroundColor: "#EC7424", // 鮮艷的紅色
+  emptyNotice: {
+    backgroundColor: "#FFFDF9",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderWidth: 2,
     borderColor: "#5E433B",
-    borderBottomWidth: 6,      // 增加底部厚度讓它看起來像遊戲按鈕
+    borderRadius: 20,
   },
+  emptyText: { color: "#5E433B", fontWeight: "bold", fontSize: 14 },
 });
