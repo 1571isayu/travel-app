@@ -60,7 +60,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable
           // 🌟 這裡使用動態顏色
-          
+          style={styles.menuContainer }
           onPress={(e) => e.stopPropagation()}
         >
           <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
