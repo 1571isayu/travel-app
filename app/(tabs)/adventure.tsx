@@ -1,17 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Plus, X } from "lucide-react-native";
 import React, { useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -134,6 +136,7 @@ export default function AdventureScreen() {
   }, [id]);
 
   const closeModal = () => {
+    Keyboard.dismiss();
     setIsModalVisible(false);
     setEditingId(null);
     setTaskTitle("");
@@ -266,6 +269,7 @@ export default function AdventureScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen options={{ gestureEnabled: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.replace("/home")}>
           <Image
@@ -472,210 +476,222 @@ export default function AdventureScreen() {
 
       {/* 新增/編輯行程 Modal */}
       <Modal visible={isModalVisible} transparent animationType="fade">
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        <Pressable
           style={styles.modalOverlay}
+          onPress={() => Keyboard.dismiss()}
         >
+          {/* 🌟 1. 外框：固定高度，完全不隨鍵盤移動 */}
           <View style={styles.modalCard}>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View style={styles.modalHeader}>
-                <View style={icons.icon14}></View>
-                <TextInput
-                  style={styles.pixelTitleInput}
-                  placeholder="請輸入標題"
-                  placeholderTextColor="#8D6E63"
-                  value={taskTitle}
-                  onChangeText={setTaskTitle}
-                />
-                <Image
-                  source={require("../../img/icon_edit.png")}
-                  style={[icons.icon14, { right: 0 }]}
-                />
-              </View>
-
-              <Image
-                source={require("../../img/ad_line.png")}
-                style={styles.modalSeparator}
-              />
-
-              <Text style={styles.inputLabel}>時間</Text>
-              <View style={styles.timePickerWrapper}>
-                <View style={styles.timePickerRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.pixelTimeBox,
-                      showStartPicker && styles.activeTimeBox,
-                    ]}
-                    onPress={() => {
-                      setShowStartPicker(!showStartPicker);
-                      setShowEndPicker(false);
-                    }}
-                  >
-                    <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
-                      {formatTime(startTime)}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <Text style={[styles.timeTilde, { color: "#4A342E" }]}>~</Text>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.pixelTimeBox,
-                      showEndPicker && styles.activeTimeBox,
-                    ]}
-                    onPress={() => {
-                      setShowEndPicker(!showEndPicker);
-                      setShowStartPicker(false);
-                    }}
-                  >
-                    <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
-                      {formatTime(endTime)}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* 🌟 選擇器現在會浮動顯示，不會推擠下方的地址輸入框 */}
-                {(showStartPicker || showEndPicker) && (
-                  <View style={styles.inlinePickerContainer}>
-                    <DateTimePicker
-                      value={showStartPicker ? startTime : endTime}
-                      mode="time"
-                      style={{
-                        height: 200,
-                        transform: [{ scale: 0.9 }],
-                      }}
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      is24Hour={false}
-                      locale="zh_TW"
-                      textColor="#4A342E"
-                      onChange={(e, d) => {
-                        if (Platform.OS === "android") {
-                          setShowStartPicker(false);
-                          setShowEndPicker(false);
-                        }
-                        if (d) showStartPicker ? setStartTime(d) : setEndTime(d);
-                      }}
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ flex: 1 }}>
+              {/* 🌟 2. 避讓層：只在黑框內收縮空間 */}
+              <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                style={{ flex: 1 }}
+                // 這裡的 offset 通常設為 0，因為它已經在視窗內了
+                keyboardVerticalOffset={0}
+              >
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ paddingBottom: 100 }}
+                >
+                  <View style={styles.modalHeader}>
+                    <View style={icons.icon14}></View>
+                    <TextInput
+                      style={styles.pixelTitleInput}
+                      placeholder="請輸入標題"
+                      placeholderTextColor="#8D6E63"
+                      value={taskTitle}
+                      onChangeText={setTaskTitle}
                     />
+                    <Image
+                      source={require("../../img/icon_edit.png")}
+                      style={[icons.icon14, { right: 0 }]}
+                    />
+                  </View>
 
-                    {/* 🌟 iOS 建議加一個「完成」按鈕來關閉浮窗，因為 iOS Spinner 不會自動收起 */}
-                    {Platform.OS === "ios" && (
+                  <Image
+                    source={require("../../img/ad_line.png")}
+                    style={styles.modalSeparator}
+                  />
+
+                  <Text style={styles.inputLabel}>時間</Text>
+                  <View style={styles.timePickerWrapper}>
+                    <View style={styles.timePickerRow}>
                       <TouchableOpacity
-                        style={{ alignSelf: 'center', marginBottom: 10 }}
+                        style={[
+                          styles.pixelTimeBox,
+                          showStartPicker && styles.activeTimeBox,
+                        ]}
                         onPress={() => {
-                          setShowStartPicker(false);
+                          setShowStartPicker(!showStartPicker);
                           setShowEndPicker(false);
                         }}
                       >
-                        <Text style={{ color: '#EC7424', fontWeight: 'bold' }}>完成</Text>
+                        <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
+                          {formatTime(startTime)}
+                        </Text>
                       </TouchableOpacity>
+
+                      <Text style={[styles.timeTilde, { color: "#4A342E" }]}>~</Text>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.pixelTimeBox,
+                          showEndPicker && styles.activeTimeBox,
+                        ]}
+                        onPress={() => {
+                          setShowEndPicker(!showEndPicker);
+                          setShowStartPicker(false);
+                        }}
+                      >
+                        <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
+                          {formatTime(endTime)}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* 🌟 選擇器現在會浮動顯示，不會推擠下方的地址輸入框 */}
+                    {(showStartPicker || showEndPicker) && (
+                      <View style={styles.inlinePickerContainer}>
+                        <DateTimePicker
+                          value={showStartPicker ? startTime : endTime}
+                          mode="time"
+                          style={{
+                            height: 200,
+                            transform: [{ scale: 0.9 }],
+                          }}
+                          display={Platform.OS === "ios" ? "spinner" : "default"}
+                          is24Hour={false}
+                          locale="zh_TW"
+                          textColor="#4A342E"
+                          onChange={(e, d) => {
+                            if (Platform.OS === "android") {
+                              setShowStartPicker(false);
+                              setShowEndPicker(false);
+                            }
+                            if (d) showStartPicker ? setStartTime(d) : setEndTime(d);
+                          }}
+                        />
+
+                        {/* 🌟 iOS 建議加一個「完成」按鈕來關閉浮窗，因為 iOS Spinner 不會自動收起 */}
+                        {Platform.OS === "ios" && (
+                          <TouchableOpacity
+                            style={{ alignSelf: 'center', marginBottom: 10 }}
+                            onPress={() => {
+                              setShowStartPicker(false);
+                              setShowEndPicker(false);
+                            }}
+                          >
+                            <Text style={{ color: '#EC7424', fontWeight: 'bold' }}>完成</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     )}
                   </View>
-                )}
-              </View>
 
-              <Text style={styles.inputLabel}>地址</Text>
-              <TextInput
-                style={styles.pixelInput}
-                placeholder="請輸入地址"
-                placeholderTextColor="#8D6E63"
-                value={taskLocation}
-                onChangeText={setTaskLocation}
-              />
-
-              <Text style={styles.inputLabel}>類型</Text>
-              <View style={{ position: "relative", zIndex: 10 }}>
-                <TouchableOpacity
-                  style={[
-                    styles.customDropdownHeader,
-                    showTypePicker && { borderBottomWidth: 0 },
-                  ]}
-                  onPress={() => setShowTypePicker(!showTypePicker)}
-                >
-                  <Text
-                    style={[
-                      styles.customDropdownText,
-                      taskType ? { color: "#4A342E" } : {},
-                    ]}
-                  >
-                    {taskType === "spot"
-                      ? "景點"
-                      : taskType === "food"
-                        ? "美食"
-                        : taskType === "shopping"
-                          ? "購物"
-                          : "請選擇行程類型"}
-                  </Text>
-                  <Image
-                    source={require("../../img/icon_chevronDown.png")}
-                    style={styles.dropdownIcon}
+                  <Text style={styles.inputLabel}>地址</Text>
+                  <TextInput
+                    style={styles.pixelInput}
+                    placeholder="請輸入地址"
+                    placeholderTextColor="#8D6E63"
+                    value={taskLocation}
+                    onChangeText={setTaskLocation}
                   />
-                </TouchableOpacity>
-                {showTypePicker && (
-                  <View style={styles.customDropdownList}>
-                    {["spot", "food", "shopping"].map((type) => (
-                      <TouchableOpacity
-                        key={type}
-                        style={styles.customDropdownItem}
-                        onPress={() => {
-                          setTaskType(type);
-                          setShowTypePicker(false);
-                        }}
+
+                  <Text style={styles.inputLabel}>類型</Text>
+                  <View style={{ position: "relative", zIndex: 10 }}>
+                    <TouchableOpacity
+                      style={[
+                        styles.customDropdownHeader,
+                        showTypePicker && { borderBottomWidth: 0 },
+                      ]}
+                      onPress={() => setShowTypePicker(!showTypePicker)}
+                    >
+                      <Text
+                        style={[
+                          styles.customDropdownText,
+                          taskType ? { color: "#4A342E" } : {},
+                        ]}
                       >
-                        <Text style={styles.customDropdownItemText}>
-                          {type === "spot"
-                            ? "景點"
-                            : type === "food"
-                              ? "美食"
-                              : "購物"}
-                        </Text>
-                        <Image
-                          source={
-                            type === "spot"
-                              ? require("../../img/icon_star.png")
-                              : type === "food"
-                                ? require("../../img/icon_food.png")
-                                : require("../../img/icon_shopping.png")
-                          }
-                          style={styles.dropdownIcon}
-                        />
-                      </TouchableOpacity>
-                    ))}
+                        {taskType === "spot"
+                          ? "景點"
+                          : taskType === "food"
+                            ? "美食"
+                            : taskType === "shopping"
+                              ? "購物"
+                              : "請選擇行程類型"}
+                      </Text>
+                      <Image
+                        source={require("../../img/icon_chevronDown.png")}
+                        style={styles.dropdownIcon}
+                      />
+                    </TouchableOpacity>
+                    {showTypePicker && (
+                      <View style={styles.customDropdownList}>
+                        {["spot", "food", "shopping"].map((type) => (
+                          <TouchableOpacity
+                            key={type}
+                            style={styles.customDropdownItem}
+                            onPress={() => {
+                              setTaskType(type);
+                              setShowTypePicker(false);
+                            }}
+                          >
+                            <Text style={styles.customDropdownItemText}>
+                              {type === "spot"
+                                ? "景點"
+                                : type === "food"
+                                  ? "美食"
+                                  : "購物"}
+                            </Text>
+                            <Image
+                              source={
+                                type === "spot"
+                                  ? require("../../img/icon_star.png")
+                                  : type === "food"
+                                    ? require("../../img/icon_food.png")
+                                    : require("../../img/icon_shopping.png")
+                              }
+                              style={styles.dropdownIcon}
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
 
-              <Text style={styles.inputLabel}>備註</Text>
-              <TextInput
-                style={[styles.pixelInput, styles.pixelTextArea]}
-                multiline
-                placeholder="備註內容..."
-                placeholderTextColor="#8D6E63"
-                value={taskDesc}
-                onChangeText={setTaskDesc}
-              />
+                  <Text style={styles.inputLabel}>備註</Text>
+                  <TextInput
+                    style={[styles.pixelInput, styles.pixelTextArea]}
+                    multiline
+                    placeholder="備註內容..."
+                    placeholderTextColor="#8D6E63"
+                    value={taskDesc}
+                    onChangeText={setTaskDesc}
+                  />
 
-              <View style={styles.pixelBtnRow}>
-                <TouchableOpacity
-                  style={[styles.pixelBtn, { backgroundColor: "#D7CCC8" }]}
-                  onPress={closeModal}
-                >
-                  <Text style={styles.pixelBtnText}>CANCEL</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.pixelBtn, { backgroundColor: "#F39C12" }]}
-                  onPress={handleSaveTask}
-                >
-                  <Text style={[styles.pixelBtnText, { color: "#FFF" }]}>
-                    SAVE
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
+                  <View style={styles.pixelBtnRow}>
+                    <TouchableOpacity
+                      style={[styles.pixelBtn, { backgroundColor: "#D7CCC8" }]}
+                      onPress={closeModal}
+                    >
+                      <Text style={styles.pixelBtnText}>CANCEL</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.pixelBtn, { backgroundColor: "#F39C12" }]}
+                      onPress={handleSaveTask}
+                    >
+                      <Text style={[styles.pixelBtnText, { color: "#FFF" }]}>
+                        SAVE
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </KeyboardAvoidingView>
+            </Pressable>
           </View>
-        </KeyboardAvoidingView>
+        </Pressable>
       </Modal>
 
       {/* 刪除確認 Modal */}
@@ -837,7 +853,10 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     padding: 20,
     borderRadius: 10,
+    // 🌟 核心：固定高度（或用百分比 height: '70%'）
+    // 這樣外框就不會被鍵盤「頂」上去
     height: 550,
+    overflow: "hidden",
   },
   modalHeader: {
     width: "100%",
@@ -892,7 +911,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     justifyContent: "center",
     top: 10,
-    zIndex: 1000,
     // 加上一點陰影增加層次感
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },

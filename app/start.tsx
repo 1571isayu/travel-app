@@ -33,7 +33,7 @@ export default function StartScreen() {
         </Text>
         {/*btn*/}
         <Pressable
-          onPress={() => router.push("/auth")}
+          onPress={() => router.replace("/auth")}
           style={({ pressed }) => [
             btnStyles.button_bg,
             pressed && { backgroundColor: "#D6631D", transform: [{ translateY: 2 }] }

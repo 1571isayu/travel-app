@@ -207,7 +207,7 @@ export default function HomeScreen() {
     setStartDate("");
     setEndDate("");
     setMarkedDates({});
-    router.replace({
+    router.push({
       pathname: "/(tabs)/adventure",
       params: { id: newAdventure.id, name: newAdventure.name },
     });
