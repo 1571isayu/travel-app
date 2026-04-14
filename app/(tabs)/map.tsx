@@ -5,6 +5,7 @@ import { ChevronLeft, Menu } from "lucide-react-native";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -53,6 +54,12 @@ export default function MapScreen() {
   // 1. 初始化：請求權限 + 讀取行程基本資料
   useEffect(() => {
     const fetchAdventureData = async () => {
+      // 在 map.tsx 的第一個 useEffect 內加入
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("權限不足", "請允許存取位置以解析行程地點");
+        return;
+      }
       try {
         setLoading(true);
         console.log("🔍 開始讀取資料，收到的 ID 為:", id);
