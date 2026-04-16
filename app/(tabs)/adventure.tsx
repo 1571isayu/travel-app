@@ -119,7 +119,7 @@ export default function AdventureScreen() {
             const diffDays =
               Math.ceil(
                 Math.abs(end.getTime() - start.getTime()) /
-                (1000 * 60 * 60 * 24),
+                  (1000 * 60 * 60 * 24),
               ) + 1;
             setTotalDays(diffDays);
           }
@@ -161,8 +161,8 @@ export default function AdventureScreen() {
 
     let newItems = editingId
       ? items.map((item) =>
-        item.id === editingId ? { ...item, ...taskData } : item,
-      )
+          item.id === editingId ? { ...item, ...taskData } : item,
+        )
       : [...items, { id: Date.now().toString(), ...taskData, imageUris: [] }];
 
     setItems(newItems);
@@ -391,6 +391,11 @@ export default function AdventureScreen() {
                     </View>
                   </View>
                   <Text style={styles.cardTitle}>{item.title}</Text>
+                  {item.desc ? (
+                    <Text style={styles.cardDesc} numberOfLines={2}>
+                      {item.desc}
+                    </Text>
+                  ) : null}
                   <View style={styles.cardFooter}>
                     <TouchableOpacity
                       onPress={() => {
@@ -528,12 +533,16 @@ export default function AdventureScreen() {
                           setShowEndPicker(false);
                         }}
                       >
-                        <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
+                        <Text
+                          style={[styles.pixelTimeText, { color: "#4A342E" }]}
+                        >
                           {formatTime(startTime)}
                         </Text>
                       </TouchableOpacity>
 
-                      <Text style={[styles.timeTilde, { color: "#4A342E" }]}>~</Text>
+                      <Text style={[styles.timeTilde, { color: "#4A342E" }]}>
+                        ~
+                      </Text>
 
                       <TouchableOpacity
                         style={[
@@ -545,7 +554,9 @@ export default function AdventureScreen() {
                           setShowStartPicker(false);
                         }}
                       >
-                        <Text style={[styles.pixelTimeText, { color: "#4A342E" }]}>
+                        <Text
+                          style={[styles.pixelTimeText, { color: "#4A342E" }]}
+                        >
                           {formatTime(endTime)}
                         </Text>
                       </TouchableOpacity>
@@ -561,7 +572,9 @@ export default function AdventureScreen() {
                             height: 200,
                             transform: [{ scale: 0.9 }],
                           }}
-                          display={Platform.OS === "ios" ? "spinner" : "default"}
+                          display={
+                            Platform.OS === "ios" ? "spinner" : "default"
+                          }
                           is24Hour={false}
                           locale="zh_TW"
                           textColor="#4A342E"
@@ -570,20 +583,25 @@ export default function AdventureScreen() {
                               setShowStartPicker(false);
                               setShowEndPicker(false);
                             }
-                            if (d) showStartPicker ? setStartTime(d) : setEndTime(d);
+                            if (d)
+                              showStartPicker ? setStartTime(d) : setEndTime(d);
                           }}
                         />
 
                         {/* 🌟 iOS 建議加一個「完成」按鈕來關閉浮窗，因為 iOS Spinner 不會自動收起 */}
                         {Platform.OS === "ios" && (
                           <TouchableOpacity
-                            style={{ alignSelf: 'center', marginBottom: 10 }}
+                            style={{ alignSelf: "center", marginBottom: 10 }}
                             onPress={() => {
                               setShowStartPicker(false);
                               setShowEndPicker(false);
                             }}
                           >
-                            <Text style={{ color: '#EC7424', fontWeight: 'bold' }}>完成</Text>
+                            <Text
+                              style={{ color: "#EC7424", fontWeight: "bold" }}
+                            >
+                              完成
+                            </Text>
                           </TouchableOpacity>
                         )}
                       </View>
@@ -801,10 +819,16 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: "row", alignItems: "center" },
   actionBtn: { marginLeft: 15 },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#5E433B",
     marginVertical: 8,
+  },
+  cardDesc: {
+    fontSize: 14,
+    color: "#8D6E63",
+    lineHeight: 20,
+    marginBottom: 8,
   },
   cardFooter: {
     flexDirection: "row",
