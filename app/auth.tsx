@@ -3,7 +3,10 @@ import {
   useFonts,
 } from "@expo-google-fonts/press-start-2p";
 import { useRouter } from "expo-router";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useState } from "react";
 import {
@@ -16,13 +19,11 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { btnStyles, COLORS, fieldStyles, texts } from "../constants/theme";
 import { auth, db } from "../firebaseConfig";
-
-
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -45,7 +46,11 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       if (isLoginMode) {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(
+          auth,
+          email,
+          password,
+        );
         const user = userCredential.user;
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
@@ -64,13 +69,21 @@ export default function AuthScreen() {
           router.replace("/setup");
         }
       } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password,
+        );
         const user = userCredential.user;
-        await setDoc(doc(db, "users", user.uid), {
-          email: user.email,
-          createdAt: serverTimestamp(),
-          isSetupComplete: false,
-        }, { merge: true });
+        await setDoc(
+          doc(db, "users", user.uid),
+          {
+            email: user.email,
+            createdAt: serverTimestamp(),
+            isSetupComplete: false,
+          },
+          { merge: true },
+        );
         Alert.alert("成功", "註冊成功！請設定您的角色。");
         router.replace("/setup");
       }
@@ -136,7 +149,10 @@ export default function AuthScreen() {
               onPress={handleAuth}
               style={({ pressed }) => [
                 btnStyles.button_bg,
-                pressed && { backgroundColor: COLORS.primary_pressed, transform: [{ translateY: 2 }] },
+                pressed && {
+                  backgroundColor: COLORS.primary_pressed,
+                  transform: [{ translateY: 2 }],
+                },
               ]}
             >
               <Text style={texts.btn_text2}>
@@ -152,14 +168,15 @@ export default function AuthScreen() {
               ]}
             >
               <Text style={styles.signUp_subtitle}>
-                {isLoginMode ? "新來的冒險家？點此註冊" : "已經有帳號了？點此登入"}
+                {isLoginMode
+                  ? "新來的冒險家？點此註冊"
+                  : "已經有帳號了？點此登入"}
               </Text>
             </Pressable>
-
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView >
+    </SafeAreaView>
   );
 }
 
@@ -219,5 +236,4 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textDecorationLine: "underline",
   },
-
 });

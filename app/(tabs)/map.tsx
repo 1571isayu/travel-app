@@ -122,6 +122,8 @@ export default function MapScreen() {
   // 2. 當天數或資料改變時，轉換地址為座標
   useEffect(() => {
     const geocodeLocations = async () => {
+      //程式會先掃描當天的所有行程點（items）
+      //並找出那些有填寫 location 欄位的項目
       setGeocoding(true);
       const dayItems = items
         .filter(
@@ -133,9 +135,11 @@ export default function MapScreen() {
 
       for (const item of dayItems) {
         try {
+          //呼叫 Expo Location API
           const geocoded = await Location.geocodeAsync(item.location!);
           if (geocoded.length > 0) {
             newCoords.push({
+              //把標題 時間打包
               latitude: geocoded[0].latitude,
               longitude: geocoded[0].longitude,
               title: item.title,
@@ -153,6 +157,7 @@ export default function MapScreen() {
       if (newCoords.length > 0 && mapRef.current) {
         setTimeout(() => {
           mapRef.current?.fitToCoordinates(newCoords, {
+            //自動調整縮放以包含所有座標
             edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
             animated: true,
           });

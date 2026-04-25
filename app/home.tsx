@@ -127,7 +127,7 @@ export default function HomeScreen() {
   // 🌟 點選日期時，操作的是 temp 狀態
   const onDayPress = (day: any) => {
     const dateString = day.dateString;
-
+    //第一次點擊（或重新開始選擇）
     if (!tempStartDate || (tempStartDate && tempEndDate)) {
       setTempStartDate(dateString);
       setTempEndDate("");
@@ -137,7 +137,7 @@ export default function HomeScreen() {
           color: "#EC7424",
           textColor: "white",
         },
-      });
+      }); //點擊了比「起點」更早的日期
     } else if (tempStartDate && !tempEndDate) {
       if (dateString < tempStartDate) {
         setTempStartDate(dateString);
@@ -159,6 +159,7 @@ export default function HomeScreen() {
         };
         let currDate = getNextDay(tempStartDate);
         while (currDate < dateString) {
+          //中間天數
           newMarked[currDate] = { color: "#fae2d1", textColor: "#5E433B" };
           currDate = getNextDay(currDate);
         }
@@ -198,8 +199,9 @@ export default function HomeScreen() {
       peopleCount: 1,
     };
     const updatedList = [newAdventure, ...myAdventures];
-    setMyAdventures(updatedList);
+    setMyAdventures(updatedList); //更新 React 狀態
     await AsyncStorage.setItem(
+      // 同步寫入 AsyncStorage
       "@my_adventures_v2",
       JSON.stringify(updatedList),
     );

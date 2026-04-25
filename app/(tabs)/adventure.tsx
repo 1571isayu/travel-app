@@ -102,6 +102,7 @@ export default function AdventureScreen() {
   };
 
   useEffect(() => {
+    //從home 抓天數
     const fetchAdventureData = async () => {
       try {
         setLoading(true);
@@ -114,6 +115,7 @@ export default function AdventureScreen() {
               start: currentAdv.startDate,
               end: currentAdv.endDate,
             });
+            //算天數
             const start = new Date(currentAdv.startDate);
             const end = new Date(currentAdv.endDate);
             const diffDays =

@@ -31,10 +31,11 @@ const characterList = [
 
 export default function SetupScreen() {
   const router = useRouter();
-  const { mode } = useLocalSearchParams(); // 🌟 獲取是 'edit' 還是新手註冊
-  const [name, setName] = useState("");
+  const { mode } = useLocalSearchParams();
+  // mode === "edit" ? 編輯(修改) : 創立
+  const [name, setName] = useState(""); //輸入的使用者姓名
   const [loading, setLoading] = useState(false);
-  const [realIndex, setRealIndex] = useState(0);
+  const [realIndex, setRealIndex] = useState(0); //陣列的0跟1
 
   let [fontsLoaded] = useFonts({ PressStart2P_400Regular });
 

@@ -26,10 +26,11 @@ export default function LoadingScreen() {
     if (fontsLoaded) {
       progress.value = withTiming(100, {
         duration: 2000, // 動畫跑 2 秒
-        easing: Easing.linear,
+        easing: Easing.linear, //線性動畫
       });
 
       // 2.5 秒後自動跳轉到開始畫面
+      //用replace 不是push 是因為他不會跳轉回來
       const timer = setTimeout(() => {
         router.replace("/start");
       }, 2500);
