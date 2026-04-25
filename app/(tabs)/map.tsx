@@ -232,6 +232,8 @@ export default function MapScreen() {
         <MapView
           ref={mapRef}
           style={styles.map}
+          showsUserLocation={true} // 🌟 必須為 true
+          showsMyLocationButton={true} // 🌟 建議加上，會出現一個按鈕讓你一鍵回到自己位置
           initialRegion={{
             latitude: 23.6978,
             longitude: 120.9605,
