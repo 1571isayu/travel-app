@@ -1,3 +1,13 @@
+import {
+  addDoc,
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
+import { db } from "../../firebaseConfig";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
@@ -35,6 +45,7 @@ type TimelineItemType = {
   location?: string;
   imageUris?: string[];
   isPast: boolean;
+  createdBy: string;
 };
 
 export default function AdventureScreen() {
@@ -63,6 +74,9 @@ export default function AdventureScreen() {
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
 
+  const [roomMembers, setRoomMembers] = useState<any[]>([]);
+  const [myProfile, setMyProfile] = useState<any>(null);
+
   const formatTime = (date: Date) => {
     const hours = date.getHours().toString().padStart(2, "0");
     const minutes = date.getMinutes().toString().padStart(2, "0");
@@ -75,7 +89,6 @@ export default function AdventureScreen() {
     return parts.length === 3 ? `${parts[1]}.${parts[2]}` : dateStr;
   };
 
-  // 🌟 新增：開啟「新增行程」Modal 的邏輯 (抓取最後一個時間)
   const openAddModal = () => {
     const todayItems = items
       .filter((i) => i.day === currentDay)
@@ -102,40 +115,57 @@ export default function AdventureScreen() {
   };
 
   useEffect(() => {
-    //從home 抓天數
-    const fetchAdventureData = async () => {
-      try {
-        setLoading(true);
-        const savedAdventures = await AsyncStorage.getItem("@my_adventures_v2");
-        if (savedAdventures) {
-          const adventures = JSON.parse(savedAdventures);
-          const currentAdv = adventures.find((adv: any) => adv.id === id);
-          if (currentAdv) {
-            setAdventureDates({
-              start: currentAdv.startDate,
-              end: currentAdv.endDate,
-            });
-            //算天數
-            const start = new Date(currentAdv.startDate);
-            const end = new Date(currentAdv.endDate);
-            const diffDays =
-              Math.ceil(
-                Math.abs(end.getTime() - start.getTime()) /
-                  (1000 * 60 * 60 * 24),
-              ) + 1;
+    if (!id) return;
+
+    AsyncStorage.getItem("@user_profile").then((str) => {
+      if (str) setMyProfile(JSON.parse(str));
+    });
+
+    const unsubRoom = onSnapshot(
+      doc(db, "adventures", id as string),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setRoomMembers(data.members || []);
+
+          if (data.startDate && data.endDate) {
+            const start = new Date(data.startDate);
+            const end = new Date(data.endDate);
+            const diffTime = Math.abs(end.getTime() - start.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
             setTotalDays(diffDays);
+            setAdventureDates({ start: data.startDate, end: data.endDate });
           }
         }
-        const savedTimeline = await AsyncStorage.getItem(`@timeline_${id}`);
-        if (savedTimeline) setItems(JSON.parse(savedTimeline));
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
+      },
+    );
+
+    const itineraryRef = collection(
+      db,
+      "adventures",
+      id as string,
+      "itinerary",
+    );
+    const q = query(itineraryRef, orderBy("time", "asc"));
+
+    const unsubItinerary = onSnapshot(q, (snapshot) => {
+      const loadedItems: TimelineItemType[] = [];
+      snapshot.forEach((docSnap) => {
+        loadedItems.push({
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as TimelineItemType);
+      });
+
+      setItems(loadedItems.filter((item) => item.day === currentDay));
+      setLoading(false);
+    });
+
+    return () => {
+      unsubRoom();
+      unsubItinerary();
     };
-    if (id) fetchAdventureData();
-  }, [id]);
+  }, [id, currentDay]);
 
   const closeModal = () => {
     Keyboard.dismiss();
@@ -150,26 +180,48 @@ export default function AdventureScreen() {
     setShowTypePicker(false);
   };
 
-  const handleSaveTask = async () => {
-    const taskData = {
-      day: currentDay,
-      time: `${formatTime(startTime)}~${formatTime(endTime)}`,
-      title: taskTitle || "未命名行程",
-      location: taskLocation,
+  const handleSaveTask = () => {
+    if (!taskTitle) {
+      Alert.alert("提示", "請輸入行程標題");
+      return;
+    }
+    const timeStr = `${formatTime(startTime)}~${formatTime(endTime)}`;
+    handleSaveItem({
+      type: taskType,
+      time: timeStr,
+      title: taskTitle,
       desc: taskDesc,
-      type: taskType || "spot",
+      location: taskLocation,
       isPast: false,
-    };
-
-    let newItems = editingId
-      ? items.map((item) =>
-          item.id === editingId ? { ...item, ...taskData } : item,
-        )
-      : [...items, { id: Date.now().toString(), ...taskData, imageUris: [] }];
-
-    setItems(newItems);
-    await AsyncStorage.setItem(`@timeline_${id}`, JSON.stringify(newItems));
+    });
     closeModal();
+  };
+
+  const handleSaveItem = async (
+    newItemData: Omit<TimelineItemType, "id" | "createdBy" | "day">,
+  ) => {
+    if (!myProfile) {
+      Alert.alert("錯誤", "無法辨識您的使用者身份，請重啟 App");
+      return;
+    }
+
+    try {
+      const itineraryRef = collection(
+        db,
+        "adventures",
+        id as string,
+        "itinerary",
+      );
+
+      await addDoc(itineraryRef, {
+        ...newItemData,
+        day: currentDay,
+        createdBy: myProfile.uid,
+      });
+    } catch (error) {
+      console.error("行程上傳失敗:", error);
+      Alert.alert("錯誤", "無法同步行程到雲端");
+    }
   };
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -190,7 +242,6 @@ export default function AdventureScreen() {
     }
   };
 
-  // 🌟 修正：明確定義 uriToDelete: string
   const handleDeleteImage = async (taskId: string, uriToDelete: string) => {
     Alert.alert("刪除照片", "確定要從此行程中移除這張照片嗎？", [
       { text: "取消", style: "cancel" },
@@ -298,13 +349,11 @@ export default function AdventureScreen() {
           </Text>
         </View>
 
-        {/* 🌟 替換後的地圖按鈕 🌟 */}
         <TouchableOpacity
           onPress={() => {
             if (id) {
-              // 跳轉到 map 頁面，並把當前行程的 id 與 name 傳過去
               router.push({
-                pathname: "/map", // 請根據你實質的 expo-router 檔案路徑調整，例如 "/map" 或 "/(tabs)/map"
+                pathname: "/map",
                 params: { id, name },
               });
             } else {
@@ -313,8 +362,8 @@ export default function AdventureScreen() {
           }}
         >
           <Image
-            source={require("../../img/icon_map.png")} // 確保圖片路徑與檔名正確
-            style={{ height: 20, width: 20 }} // 根據像素風圖標微調了大小，使其更容易點擊
+            source={require("../../img/icon_map.png")}
+            style={{ height: 20, width: 20 }}
             resizeMode="contain"
           />
         </TouchableOpacity>
@@ -360,108 +409,148 @@ export default function AdventureScreen() {
         <View style={styles.timelineWrapper}>
           {currentDayItems.length > 0 && <View style={styles.verticalLine} />}
           {currentDayItems.length > 0 ? (
-            currentDayItems.map((item) => (
-              <View key={item.id} style={styles.timelineRow}>
-                <View style={styles.timelineDot} />
-                <View style={styles.card}>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardTime}>{item.time}</Text>
-                    <View style={styles.cardActions}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          setEditingId(item.id);
-                          setTaskTitle(item.title);
-                          setTaskLocation(item.location || "");
-                          setTaskDesc(item.desc || "");
-                          setTaskType(item.type);
+            currentDayItems.map((item) => {
+              const creator = roomMembers.find((m) => m.uid === item.createdBy);
+              const borderColor = creator?.color || "#5E433B";
 
-                          // 🌟 修正：編輯時解析舊時間
-                          const [sTimeStr, eTimeStr] = item.time.split("~");
-                          const [sH, sM] = sTimeStr.split(":").map(Number);
-                          const [eH, eM] = eTimeStr.split(":").map(Number);
-                          const d1 = new Date();
-                          d1.setHours(sH, sM, 0, 0);
-                          const d2 = new Date();
-                          d2.setHours(eH, eM, 0, 0);
-                          setStartTime(d1);
-                          setEndTime(d2);
+              const avatarSource = creator?.avatar
+                ? { uri: creator.avatar }
+                : require("../../img/icon_user.png");
 
-                          setIsModalVisible(true);
+              return (
+                <View key={item.id} style={styles.timelineRow}>
+                  <View style={styles.timelineDot} />
+
+                  <View style={styles.card}>
+                    <View style={styles.cardHeader}>
+                      <Text style={styles.cardTime}>{item.time}</Text>
+                      <View style={styles.cardActions}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setEditingId(item.id);
+                            setTaskTitle(item.title);
+                            setTaskLocation(item.location || "");
+                            setTaskDesc(item.desc || "");
+                            setTaskType(item.type);
+
+                            const [sTimeStr, eTimeStr] = item.time.split("~");
+                            const [sH, sM] = sTimeStr.split(":").map(Number);
+                            const [eH, eM] = eTimeStr.split(":").map(Number);
+                            const d1 = new Date();
+                            d1.setHours(sH, sM, 0, 0);
+                            const d2 = new Date();
+                            d2.setHours(eH, eM, 0, 0);
+                            setStartTime(d1);
+                            setEndTime(d2);
+
+                            setIsModalVisible(true);
+                          }}
+                          style={styles.actionBtn}
+                        >
+                          <Image
+                            source={require("../../img/icon_edit.png")}
+                            style={{ height: 14, aspectRatio: 1 }}
+                            resizeMode="contain"
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteTask(item.id)}
+                          style={styles.actionBtn}
+                        >
+                          <Image
+                            source={require("../../img/icon_delete.png")}
+                            style={{ height: 14, aspectRatio: 1 }}
+                            resizeMode="contain"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <Text style={styles.cardTitle}>{item.title}</Text>
+                    {item.desc ? (
+                      <Text style={styles.cardDesc} numberOfLines={2}>
+                        {item.desc}
+                      </Text>
+                    ) : null}
+
+                    {/* 🌟 底部功能列（地圖、圖片、頭像都在這） */}
+                    <View style={styles.cardFooter}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 15,
                         }}
-                        style={styles.actionBtn}
+                      >
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (!item.location)
+                              return Alert.alert(
+                                "提示",
+                                "這個行程還沒有輸入地址喔！",
+                              );
+                            Linking.openURL(
+                              `http://maps.google.com/?q=${encodeURIComponent(item.location)}`,
+                            );
+                          }}
+                        >
+                          <Image
+                            source={require("../../img/icon_mapLink.png")}
+                            style={{ height: 18, aspectRatio: 1 }}
+                            resizeMode="contain"
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => pickImages(item.id)}>
+                          <Image
+                            source={require("../../img/icon_image.png")}
+                            style={{ height: 18, aspectRatio: 1 }}
+                            resizeMode="contain"
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* 行程上傳的微縮照片滑動區 */}
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={{ flex: 1, marginLeft: 5 }}
+                      >
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          {item.imageUris?.map((uri, idx) => (
+                            <TouchableOpacity
+                              key={idx}
+                              onPress={() => setSelectedFullImage(uri)}
+                              onLongPress={() =>
+                                handleDeleteImage(item.id, uri)
+                              }
+                              delayLongPress={500}
+                            >
+                              <Image
+                                source={{ uri }}
+                                style={styles.miniImage}
+                              />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </ScrollView>
+
+                      {/* 🌟 移到右下角的小圓圈頭像 🌟 */}
+                      <View
+                        style={[
+                          styles.tinyCreatorAvatarContainer,
+                          { borderColor: borderColor },
+                        ]}
                       >
                         <Image
-                          source={require("../../img/icon_edit.png")}
-                          style={{ height: 14, aspectRatio: 1 }}
-                          resizeMode="contain"
+                          source={avatarSource}
+                          style={styles.tinyCreatorAvatar}
                         />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleDeleteTask(item.id)}
-                        style={styles.actionBtn}
-                      >
-                        <Image
-                          source={require("../../img/icon_delete.png")}
-                          style={{ height: 14, aspectRatio: 1 }}
-                          resizeMode="contain"
-                        />
-                      </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
-                  <Text style={styles.cardTitle}>{item.title}</Text>
-                  {item.desc ? (
-                    <Text style={styles.cardDesc} numberOfLines={2}>
-                      {item.desc}
-                    </Text>
-                  ) : null}
-                  <View style={styles.cardFooter}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        if (!item.location)
-                          return Alert.alert(
-                            "提示",
-                            "這個行程還沒有輸入地址喔！",
-                          );
-                        Linking.openURL(
-                          `http://maps.google.com/?q=${encodeURIComponent(item.location)}`,
-                        );
-                      }}
-                    >
-                      <Image
-                        source={require("../../img/icon_mapLink.png")}
-                        style={{ height: 18, aspectRatio: 1 }}
-                        resizeMode="contain"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => pickImages(item.id)}>
-                      <Image
-                        source={require("../../img/icon_image.png")}
-                        style={{ height: 18, aspectRatio: 1 }}
-                        resizeMode="contain"
-                      />
-                    </TouchableOpacity>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={{ flex: 1 }}
-                    >
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        {item.imageUris?.map((uri, idx) => (
-                          <TouchableOpacity
-                            key={idx}
-                            onPress={() => setSelectedFullImage(uri)}
-                            onLongPress={() => handleDeleteImage(item.id, uri)}
-                            delayLongPress={500}
-                          >
-                            <Image source={{ uri }} style={styles.miniImage} />
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </ScrollView>
-                  </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           ) : (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyNotice}>
@@ -473,7 +562,6 @@ export default function AdventureScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* 🌟 修正：使用自定義的 openAddModal */}
       <TouchableOpacity style={styles.fab} onPress={openAddModal}>
         <Plus size={32} color="#FFF" />
       </TouchableOpacity>
@@ -503,14 +591,11 @@ export default function AdventureScreen() {
           style={styles.modalOverlay}
           onPress={() => Keyboard.dismiss()}
         >
-          {/* 🌟 1. 外框：固定高度，完全不隨鍵盤移動 */}
           <View style={styles.modalCard}>
             <Pressable onPress={(e) => e.stopPropagation()} style={{ flex: 1 }}>
-              {/* 🌟 2. 避讓層：只在黑框內收縮空間 */}
               <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
-                // 這裡的 offset 通常設為 0，因為它已經在視窗內了
                 keyboardVerticalOffset={0}
               >
                 <ScrollView
@@ -580,7 +665,6 @@ export default function AdventureScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* 🌟 選擇器現在會浮動顯示，不會推擠下方的地址輸入框 */}
                     {(showStartPicker || showEndPicker) && (
                       <View style={styles.inlinePickerContainer}>
                         <DateTimePicker
@@ -606,7 +690,6 @@ export default function AdventureScreen() {
                           }}
                         />
 
-                        {/* 🌟 iOS 建議加一個「完成」按鈕來關閉浮窗，因為 iOS Spinner 不會自動收起 */}
                         {Platform.OS === "ios" && (
                           <TouchableOpacity
                             style={{ alignSelf: "center", marginBottom: 10 }}
@@ -835,7 +918,7 @@ const styles = StyleSheet.create({
   },
   cardTime: { fontSize: 13, color: "#8D6E63" },
   cardActions: { flexDirection: "row", alignItems: "center" },
-  actionBtn: { marginLeft: 15 },
+  actionBtn: { marginLeft: 10 },
   cardTitle: {
     fontSize: 20,
     fontWeight: "bold",
@@ -851,8 +934,21 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 15,
+    justifyContent: "space-between", // 🌟 確保內容兩端對齊
     marginTop: 10,
+  },
+  tinyCreatorAvatarContainer: {
+    width: 26, // 🌟 讓頭像尺寸稍微精緻小巧
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    overflow: "hidden",
+    backgroundColor: "#FFF",
+    marginLeft: 10,
+  },
+  tinyCreatorAvatar: {
+    width: "100%",
+    height: "100%",
   },
   miniImage: {
     width: 24,
@@ -895,8 +991,6 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     padding: 20,
     borderRadius: 10,
-    // 🌟 核心：固定高度（或用百分比 height: '70%'）
-    // 這樣外框就不會被鍵盤「頂」上去
     height: 550,
     overflow: "hidden",
   },
@@ -939,7 +1033,6 @@ const styles = StyleSheet.create({
   pixelTimeText: { fontWeight: "bold" },
   timeTilde: { fontSize: 18 },
 
-  // 🌟 新增一個包裹層樣式，用來作為絕對定位的基準
   timePickerWrapper: {
     width: "100%",
   },
@@ -953,7 +1046,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     justifyContent: "center",
     top: 10,
-    // 加上一點陰影增加層次感
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
@@ -14,6 +13,16 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
+
+// 🌟 1. 引入 Firebase 與即時監聽工具
+import {
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
+import { db } from "../../firebaseConfig"; // 如果報錯，請確認相對路徑是 "../firebaseConfig" 或 "../../firebaseConfig"
 
 type TimelineItemType = {
   id: string;
@@ -48,79 +57,82 @@ export default function MapScreen() {
     return parts.length === 3 ? `${parts[1]}.${parts[2]}` : dateStr;
   };
 
-  // 1. 初始化：請求權限 + 讀取行程基本資料
+  // 🌟 2. 替換為 Firebase 即時監聽
   useEffect(() => {
-    const fetchAdventureData = async () => {
-      // 在 map.tsx 的第一個 useEffect 內加入
+    if (!id) return;
+
+    let unsubRoom: () => void;
+    let unsubItinerary: () => void;
+
+    const requestPermissionAndListen = async () => {
+      // 要求定位權限
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         Alert.alert("權限不足", "請允許存取位置以解析行程地點");
+        setLoading(false);
         return;
       }
+
       try {
-        setLoading(true);
-        console.log("🔍 開始讀取資料，收到的 ID 為:", id);
-
-        const savedAdventures = await AsyncStorage.getItem("@my_adventures_v2");
-        if (!savedAdventures) {
-          console.log("❌ 找不到任何行程設定檔 (@my_adventures_v2)");
-          setLoading(false);
-          return;
-        }
-
-        const adventures = JSON.parse(savedAdventures);
-        const targetId =
-          id ||
-          (adventures.length > 0 ? adventures[adventures.length - 1].id : null);
-
-        if (!targetId) {
-          console.log("❌ 沒有行程 ID，也找不到預設行程");
-          setLoading(false);
-          return;
-        }
-
-        console.log("✅ 確定目標行程 ID:", targetId);
-
-        const currentAdv = adventures.find((adv: any) => adv.id === targetId);
-        if (currentAdv) {
-          setAdventureDates({
-            start: currentAdv.startDate,
-            end: currentAdv.endDate,
-          });
-          const start = new Date(currentAdv.startDate);
-          const end = new Date(currentAdv.endDate);
-          const diffDays =
-            Math.ceil(
-              Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
-            ) + 1;
-          setTotalDays(diffDays);
-        }
-
-        const savedTimeline = await AsyncStorage.getItem(
-          `@timeline_${targetId}`,
+        // A. 監聽房間基本資料（取得天數與日期）
+        unsubRoom = onSnapshot(
+          doc(db, "adventures", id as string),
+          (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              if (data.startDate && data.endDate) {
+                setAdventureDates({ start: data.startDate, end: data.endDate });
+                const start = new Date(data.startDate);
+                const end = new Date(data.endDate);
+                const diffDays =
+                  Math.ceil(
+                    Math.abs(end.getTime() - start.getTime()) /
+                      (1000 * 60 * 60 * 24),
+                  ) + 1;
+                setTotalDays(diffDays);
+              }
+            }
+          },
         );
-        if (savedTimeline) {
-          const parsedTimeline = JSON.parse(savedTimeline);
-          console.log("📍 抓到的行程項目數量:", parsedTimeline.length);
-          setItems(parsedTimeline);
-        } else {
-          console.log("⚠️ 該行程目前沒有任何地點資料");
-        }
+
+        // B. 監聽行程資料（即時抓取所有地標）
+        const itineraryRef = collection(
+          db,
+          "adventures",
+          id as string,
+          "itinerary",
+        );
+        const q = query(itineraryRef, orderBy("time", "asc"));
+
+        unsubItinerary = onSnapshot(q, (snapshot) => {
+          const loadedItems: TimelineItemType[] = [];
+          snapshot.forEach((docSnap) => {
+            loadedItems.push({
+              id: docSnap.id,
+              ...docSnap.data(),
+            } as TimelineItemType);
+          });
+          setItems(loadedItems);
+          setLoading(false);
+        });
       } catch (error) {
-        console.error("🚨 讀取過程中發生錯誤:", error);
-      } finally {
+        console.error("🚨 讀取地圖資料發生錯誤:", error);
         setLoading(false);
       }
     };
 
-    fetchAdventureData();
+    requestPermissionAndListen();
+
+    // 離開地圖時中斷連線，節省流量
+    return () => {
+      if (unsubRoom) unsubRoom();
+      if (unsubItinerary) unsubItinerary();
+    };
   }, [id]);
 
-  // 2. 當天數或資料改變時，轉換地址為座標
+  // 3. 當天數或資料改變時，轉換地址為座標 (維持不變)
   useEffect(() => {
     const geocodeLocations = async () => {
-      //程式會先掃描當天的所有行程點（items）
-      //並找出那些有填寫 location 欄位的項目
       setGeocoding(true);
       const dayItems = items
         .filter(
@@ -132,11 +144,9 @@ export default function MapScreen() {
 
       for (const item of dayItems) {
         try {
-          //呼叫 Expo Location API
           const geocoded = await Location.geocodeAsync(item.location!);
           if (geocoded.length > 0) {
             newCoords.push({
-              //把標題 時間打包
               latitude: geocoded[0].latitude,
               longitude: geocoded[0].longitude,
               title: item.title,
@@ -154,7 +164,6 @@ export default function MapScreen() {
       if (newCoords.length > 0 && mapRef.current) {
         setTimeout(() => {
           mapRef.current?.fitToCoordinates(newCoords, {
-            //自動調整縮放以包含所有座標
             edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
             animated: true,
           });
@@ -162,8 +171,12 @@ export default function MapScreen() {
       }
     };
 
-    if (items.length > 0) geocodeLocations();
-  }, [currentDay, items]);
+    if (items.length > 0) {
+      geocodeLocations();
+    } else if (items.length === 0 && !loading) {
+      setCoordinates([]); // 當天沒有行程時清空座標
+    }
+  }, [currentDay, items, loading]);
 
   if (loading) {
     return (
@@ -190,7 +203,6 @@ export default function MapScreen() {
           </Text>
         </View>
 
-        {/* 🌟 舊的漢堡選單已刪除，改用一個隱形的空 View 佔位，確保中間的標題不歪掉 🌟 */}
         <View style={{ width: 28 }} />
       </View>
 
@@ -231,8 +243,8 @@ export default function MapScreen() {
         <MapView
           ref={mapRef}
           style={styles.map}
-          showsUserLocation={true} // 🌟 必須為 true
-          showsMyLocationButton={true} // 🌟 建議加上，會出現一個按鈕讓你一鍵回到自己位置
+          showsUserLocation={true}
+          showsMyLocationButton={true}
           initialRegion={{
             latitude: 23.6978,
             longitude: 120.9605,
@@ -243,8 +255,8 @@ export default function MapScreen() {
           {coordinates.length > 1 && (
             <Polyline
               coordinates={coordinates}
-              strokeColor="#5E433B" // 🌟 連線顏色統一改回深褐色，搭配地圖更有質感
-              strokeWidth={4} // 加粗一點讓路線更明顯
+              strokeColor="#5E433B"
+              strokeWidth={4}
               lineDashPattern={[0, 0]}
             />
           )}
@@ -259,11 +271,9 @@ export default function MapScreen() {
               title={coord.title}
               description={coord.time}
             >
-              {/* 🌟 客製化帶數字的 Marker */}
               <View style={styles.customMarker}>
                 <Text style={styles.markerText}>{index + 1}</Text>
               </View>
-              {/* 下方的小三角形，營造地標針的感覺 */}
               <View style={styles.markerTriangle} />
             </Marker>
           ))}
@@ -344,22 +354,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   emptyText: { color: "#5E433B", fontWeight: "bold" },
-
-  // 🌟 客製化 Marker 的樣式
   customMarker: {
-    backgroundColor: "#EC7424", // 統一使用橘色
+    backgroundColor: "#EC7424",
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 20, // 圓角外觀
+    borderRadius: 20,
     borderWidth: 2,
-    borderColor: "#FFFDF9", // 白色邊框增加對比度
+    borderColor: "#FFFDF9",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 2,
-    elevation: 4, // Android 陰影
+    elevation: 4,
   },
   markerText: {
     color: "#FFFDF9",
@@ -376,7 +384,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 8,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#EC7424", // 顏色跟上面的底色一樣
+    borderTopColor: "#EC7424",
     alignSelf: "center",
   },
 });

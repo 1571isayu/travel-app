@@ -1,3 +1,6 @@
+import { arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { db } from "../firebaseConfig"; // 🌟 確保從正確的相對路徑引入 db
+
 import { COLORS, fieldStyles, icons, texts } from "@/constants/theme";
 import {
   PressStart2P_400Regular,
@@ -76,6 +79,32 @@ type AdventureRecord = {
   peopleCount: number;
 };
 
+// 角色的顏色列表
+const BORDER_COLORS = [
+  "#E84A41",
+  "#3A86FF",
+  "#38B000",
+  "#FFB703",
+  "#702AF8",
+  "#FF007F",
+];
+
+const ensureUserProfile = async () => {
+  const storedProfile = await AsyncStorage.getItem("@user_profile");
+  let profile = storedProfile ? JSON.parse(storedProfile) : {};
+
+  if (!profile.uid) {
+    profile.uid = "user_" + Math.random().toString(36).substring(2, 11);
+    profile.color =
+      BORDER_COLORS[Math.floor(Math.random() * BORDER_COLORS.length)];
+    profile.name =
+      profile.name || "冒險者_" + Math.random().toString(36).substring(2, 5);
+    profile.avatar = profile.avatar || null;
+    await AsyncStorage.setItem("@user_profile", JSON.stringify(profile));
+  }
+  return profile;
+};
+
 const getNextDay = (dateStr: string) => {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(y, m - 1, d + 1);
@@ -87,6 +116,124 @@ const getNextDay = (dateStr: string) => {
 
 export default function HomeScreen() {
   const router = useRouter();
+
+  // 🌟【新功能 1】建立房間的邏輯
+  const handleCreateAdventure = async (
+    name: string,
+    start: string,
+    end: string,
+  ) => {
+    if (!name || !start || !end) {
+      Alert.alert("提示", "請輸入標題並選擇完整日期區間！");
+      return;
+    }
+
+    try {
+      const userProfile = await ensureUserProfile();
+      const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      // 1. 寫入 Firebase
+      await setDoc(doc(db, "adventures", roomId), {
+        id: roomId,
+        name: name,
+        startDate: start,
+        endDate: end,
+        createdAt: new Date().toISOString(),
+        members: [userProfile],
+      });
+
+      // 2. 同步保存到本地歷史紀錄（SELECT 區塊才看得到自己建立過哪些房間）
+      const newAdventure: AdventureRecord = {
+        id: roomId,
+        name: name,
+        startDate: start,
+        endDate: end,
+        peopleCount: 1,
+      };
+      const updatedList = [newAdventure, ...myAdventures];
+      setMyAdventures(updatedList);
+      await AsyncStorage.setItem(
+        "@my_adventures_v2",
+        JSON.stringify(updatedList),
+      );
+
+      Alert.alert("建立成功", `隊伍 ID: ${roomId}`);
+
+      // 清空輸入框狀態
+      setAdventureName("");
+      setStartDate("");
+      setEndDate("");
+      setMarkedDates({});
+
+      // 跳轉
+      router.push({
+        pathname: "/(tabs)/adventure",
+        params: { id: roomId, name: name },
+      });
+    } catch (error) {
+      console.error("建立線上冒險失敗:", error);
+      Alert.alert("錯誤", "無法建立線上冒險行程");
+    }
+  };
+
+  // 🌟【新功能 2】加入別人房間的邏輯
+  const handleJoinAdventure = async (roomId: string) => {
+    if (!roomId) return Alert.alert("提示", "請輸入隊伍 ID");
+    const trimmedId = roomId.trim().toUpperCase();
+
+    try {
+      const userProfile = await ensureUserProfile();
+      const docRef = doc(db, "adventures", trimmedId);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const adventureData = docSnap.data();
+
+        const isAlreadyMember = adventureData.members.some(
+          (m: any) => m.uid === userProfile.uid,
+        );
+        if (!isAlreadyMember) {
+          await updateDoc(docRef, {
+            members: arrayUnion(userProfile),
+          });
+        }
+
+        // 同步保存到本地歷史紀錄（這樣以後在 SELECT 區塊也可以直接點擊進入）
+        const isExistInLocal = myAdventures.some((adv) => adv.id === trimmedId);
+        if (!isExistInLocal) {
+          const joinedAdventure: AdventureRecord = {
+            id: trimmedId,
+            name: adventureData.name,
+            startDate: adventureData.startDate,
+            endDate: adventureData.endDate,
+            peopleCount:
+              (adventureData.members || []).length + (isAlreadyMember ? 0 : 1),
+          };
+          const updatedList = [joinedAdventure, ...myAdventures];
+          setMyAdventures(updatedList);
+          await AsyncStorage.setItem(
+            "@my_adventures_v2",
+            JSON.stringify(updatedList),
+          );
+        }
+
+        Alert.alert("成功加入", `已進入【${adventureData.name}】的冒險隊伍！`);
+
+        setJoinId(""); // 清空輸入框
+
+        router.push({
+          pathname: "/(tabs)/adventure",
+          params: { id: trimmedId, name: adventureData.name },
+        });
+      } else {
+        Alert.alert("失敗", "找不到該隊伍 ID，請重新確認");
+      }
+    } catch (error) {
+      console.error("加入冒險失敗:", error);
+      Alert.alert("錯誤", "加入房間時發生錯誤");
+    }
+  };
+
   let [fontsLoaded] = useFonts({ PressStart2P_400Regular });
 
   // --- 正式狀態 ---
@@ -95,7 +242,7 @@ export default function HomeScreen() {
   const [endDate, setEndDate] = useState("");
   const [markedDates, setMarkedDates] = useState<any>({});
 
-  // --- 暫存狀態 (解決取消變更的 Bug) ---
+  // --- 暫存狀態 ---
   const [tempStartDate, setTempStartDate] = useState("");
   const [tempEndDate, setTempEndDate] = useState("");
   const [tempMarkedDates, setTempMarkedDates] = useState<any>({});
@@ -116,7 +263,6 @@ export default function HomeScreen() {
     loadAdventures();
   }, []);
 
-  // 🌟 開啟 Modal 時，先拷貝一份目前的值到暫存區
   const openDateModal = () => {
     setTempStartDate(startDate);
     setTempEndDate(endDate);
@@ -124,10 +270,8 @@ export default function HomeScreen() {
     setDateModalVisible(true);
   };
 
-  // 🌟 點選日期時，操作的是 temp 狀態
   const onDayPress = (day: any) => {
     const dateString = day.dateString;
-    //第一次點擊（或重新開始選擇）
     if (!tempStartDate || (tempStartDate && tempEndDate)) {
       setTempStartDate(dateString);
       setTempEndDate("");
@@ -137,7 +281,7 @@ export default function HomeScreen() {
           color: "#EC7424",
           textColor: "white",
         },
-      }); //點擊了比「起點」更早的日期
+      });
     } else if (tempStartDate && !tempEndDate) {
       if (dateString < tempStartDate) {
         setTempStartDate(dateString);
@@ -159,7 +303,6 @@ export default function HomeScreen() {
         };
         let currDate = getNextDay(tempStartDate);
         while (currDate < dateString) {
-          //中間天數
           newMarked[currDate] = { color: "#fae2d1", textColor: "#5E433B" };
           currDate = getNextDay(currDate);
         }
@@ -173,7 +316,6 @@ export default function HomeScreen() {
     }
   };
 
-  // 🌟 按下確認，才把 temp 同步回正式狀態
   const confirmDate = () => {
     if (!tempStartDate || !tempEndDate) {
       Alert.alert("提示", "請選擇完整的起迄日期！");
@@ -185,46 +327,8 @@ export default function HomeScreen() {
     setDateModalVisible(false);
   };
 
-  const handleCreate = async () => {
-    if (!adventureName || !startDate || !endDate) {
-      Alert.alert("提示", "請輸入標題並選擇完整日期區間！");
-      return;
-    }
-    const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newAdventure: AdventureRecord = {
-      id: randomId,
-      name: adventureName,
-      startDate: startDate,
-      endDate: endDate,
-      peopleCount: 1,
-    };
-    const updatedList = [newAdventure, ...myAdventures];
-    setMyAdventures(updatedList); //更新 React 狀態
-    await AsyncStorage.setItem(
-      // 同步寫入 AsyncStorage
-      "@my_adventures_v2",
-      JSON.stringify(updatedList),
-    );
-    setAdventureName("");
-    setStartDate("");
-    setEndDate("");
-    setMarkedDates({});
-    router.push({
-      pathname: "/(tabs)/adventure",
-      params: { id: newAdventure.id, name: newAdventure.name },
-    });
-  };
-
-  const handleJoin = () => {
-    if (!joinId) return Alert.alert("提示", "請輸入冒險 ID！");
-    router.replace({
-      pathname: "/(tabs)/adventure",
-      params: { id: joinId, name: `連線隊伍 (${joinId})` },
-    });
-  };
-
   const handleSelectAdventure = (adv: AdventureRecord) => {
-    router.replace({
+    router.push({
       pathname: "/(tabs)/adventure",
       params: { id: adv.id, name: adv.name },
     });
@@ -304,7 +408,12 @@ export default function HomeScreen() {
               <View style={styles.create_container}>
                 <View style={styles.title_group}>
                   <Text style={texts.title20}>CREATE</Text>
-                  <Pressable onPress={handleCreate}>
+                  {/* 🌟 修正點：將 onPress 綁定為新的 handleCreateAdventure */}
+                  <Pressable
+                    onPress={() =>
+                      handleCreateAdventure(adventureName, startDate, endDate)
+                    }
+                  >
                     {({ pressed }) => (
                       <View
                         style={pressed && { transform: [{ translateY: 2 }] }}
@@ -333,7 +442,6 @@ export default function HomeScreen() {
                   onChangeText={setAdventureName}
                 />
 
-                {/* 🌟 點擊觸發暫存機制 */}
                 <TouchableOpacity onPress={openDateModal}>
                   <Text
                     style={[
@@ -352,7 +460,8 @@ export default function HomeScreen() {
               <View style={styles.join_container}>
                 <View style={styles.title_group}>
                   <Text style={texts.title20}>JOIN</Text>
-                  <Pressable onPress={handleJoin}>
+                  {/* 🌟 修正點：將 onPress 綁定為新的 handleJoinAdventure */}
+                  <Pressable onPress={() => handleJoinAdventure(joinId)}>
                     {({ pressed }) => (
                       <View
                         style={pressed && { transform: [{ translateY: 2 }] }}
@@ -422,7 +531,8 @@ export default function HomeScreen() {
                             source={require("../img/icon_user.png")}
                             style={{ width: 16, height: 18 }}
                           />{" "}
-                          {adv.peopleCount}人
+                          ID: {adv.id}{" "}
+                          {/* 🌟 顯示房間短 ID 方便使用者查看或分享 */}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -443,8 +553,8 @@ export default function HomeScreen() {
             </Text>
             <Calendar
               markingType={"period"}
-              markedDates={tempMarkedDates} // 🌟 使用 temp
-              onDayPress={onDayPress} // 🌟 使用修正後的邏輯
+              markedDates={tempMarkedDates}
+              onDayPress={onDayPress}
               theme={{
                 selectedDayBackgroundColor: "#EC7424",
                 todayTextColor: "#EC7424",
@@ -480,8 +590,7 @@ export default function HomeScreen() {
   );
 }
 
-// ... Styles 保持不變 ...
-
+// ... 你的樣式 Styles 區塊完全保留，不需要更動 ...
 const styles = StyleSheet.create({
   home_content: {
     flex: 1,
@@ -523,7 +632,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   caret_absolute: {
-    position: "absolute", // 🌟 關鍵：讓這張圖浮在第一張圖正上方
+    position: "absolute",
     top: 0,
     left: 0,
   },
@@ -545,7 +654,6 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 24,
   },
-
   title_group: {
     height: 30,
     flexDirection: "row",
@@ -582,31 +690,27 @@ const styles = StyleSheet.create({
     height: "auto",
     gap: 12,
   },
-
   historyHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start", // 讓標題跟按鈕對齊頂部
+    alignItems: "flex-start",
     marginBottom: 8,
   },
-
   historyName: {
     fontFamily: "PressStart2P_400Regular",
     fontSize: 12,
     color: "#4A342E",
-    flex: 1, // 🌟 讓標題佔滿剩餘空間，防止長標題擠到按鈕
+    flex: 1,
     marginRight: 10,
     textShadowColor: "rgba(94, 67, 59, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
   },
-
   deleteTouch: {
-    padding: 5, // 增加點擊感應範圍
-    marginTop: -5, // 微調位置
+    padding: 5,
+    marginTop: -5,
     marginRight: -5,
   },
-
   deleteIcon: {
     width: 16,
     height: 16,
