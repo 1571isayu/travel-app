@@ -1,8 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, Menu } from "lucide-react-native";
-import React, { useContext, useEffect, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react-native";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,8 +14,6 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
-
-import { MenuContext } from "../../content/MenuContext";
 
 type TimelineItemType = {
   id: string;
@@ -34,7 +32,6 @@ type CoordinateType = {
 
 export default function MapScreen() {
   const { id, name } = useLocalSearchParams();
-  const { openMenu } = useContext(MenuContext);
   const mapRef = useRef<MapView>(null);
 
   const [currentDay, setCurrentDay] = useState(1);
@@ -178,10 +175,12 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Header 區塊 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <ChevronLeft color="#4A342E" size={28} />
         </TouchableOpacity>
+
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>
             {name ? name.toString().toUpperCase() : "MAP VIEW"}
@@ -190,9 +189,9 @@ export default function MapScreen() {
             {`${formatShortDate(adventureDates.start)}~${formatShortDate(adventureDates.end)}`}
           </Text>
         </View>
-        <TouchableOpacity onPress={openMenu}>
-          <Menu color="#4A342E" size={28} />
-        </TouchableOpacity>
+
+        {/* 🌟 舊的漢堡選單已刪除，改用一個隱形的空 View 佔位，確保中間的標題不歪掉 🌟 */}
+        <View style={{ width: 28 }} />
       </View>
 
       <View style={styles.daySelectorContainer}>

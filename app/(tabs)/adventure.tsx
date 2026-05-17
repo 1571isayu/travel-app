@@ -272,6 +272,8 @@ export default function AdventureScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ gestureEnabled: false }} />
+
+      {/* Header 區塊 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.replace("/home")}>
           <Image
@@ -295,10 +297,24 @@ export default function AdventureScreen() {
             {`${formatShortDate(adventureDates.start)}~${formatShortDate(adventureDates.end)}`}
           </Text>
         </View>
-        <TouchableOpacity onPress={openMenu}>
+
+        {/* 🌟 替換後的地圖按鈕 🌟 */}
+        <TouchableOpacity
+          onPress={() => {
+            if (id) {
+              // 跳轉到 map 頁面，並把當前行程的 id 與 name 傳過去
+              router.push({
+                pathname: "/map", // 請根據你實質的 expo-router 檔案路徑調整，例如 "/map" 或 "/(tabs)/map"
+                params: { id, name },
+              });
+            } else {
+              Alert.alert("提示", "找不到行程 ID，無法開啟地圖");
+            }
+          }}
+        >
           <Image
-            source={require("../../img/icon_menu.png")}
-            style={{ height: 14, aspectRatio: 1 }}
+            source={require("../../img/icon_map.png")} // 確保圖片路徑與檔名正確
+            style={{ height: 20, width: 20 }} // 根據像素風圖標微調了大小，使其更容易點擊
             resizeMode="contain"
           />
         </TouchableOpacity>
