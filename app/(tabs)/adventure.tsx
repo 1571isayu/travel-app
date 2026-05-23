@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -252,9 +253,19 @@ export default function AdventureScreen() {
 
   const confirmDelete = async () => {
     if (deleteTargetId) {
-      const newItems = items.filter((i) => i.id !== deleteTargetId);
-      setItems(newItems);
-      await AsyncStorage.setItem(`@timeline_${id}`, JSON.stringify(newItems));
+      try {
+        const itemRef = doc(
+          db,
+          "adventures",
+          id as string,
+          "itinerary",
+          deleteTargetId,
+        );
+        await deleteDoc(itemRef);
+      } catch (error) {
+        console.error("刪除行程失敗:", error);
+        Alert.alert("錯誤", "無法刪除行程，請稍後再試");
+      }
       setIsDeleteModalVisible(false);
       setDeleteTargetId(null);
     }
@@ -445,6 +456,7 @@ export default function AdventureScreen() {
                       <View style={styles.cardActions}>
                         <TouchableOpacity
                           onPress={() => {
+                            if (item.createdBy !== myProfile?.uid) return;
                             setEditingId(item.id);
                             setTaskTitle(item.title);
                             setTaskLocation(item.location || "");
@@ -463,7 +475,13 @@ export default function AdventureScreen() {
 
                             setIsModalVisible(true);
                           }}
-                          style={styles.actionBtn}
+                          style={[
+                            styles.actionBtn,
+                            item.createdBy !== myProfile?.uid && {
+                              opacity: 0,
+                              pointerEvents: "none",
+                            },
+                          ]}
                         >
                           <Image
                             source={require("../../img/icon_edit.png")}
@@ -472,8 +490,17 @@ export default function AdventureScreen() {
                           />
                         </TouchableOpacity>
                         <TouchableOpacity
-                          onPress={() => handleDeleteTask(item.id)}
-                          style={styles.actionBtn}
+                          onPress={() => {
+                            if (item.createdBy !== myProfile?.uid) return;
+                            handleDeleteTask(item.id);
+                          }}
+                          style={[
+                            styles.actionBtn,
+                            item.createdBy !== myProfile?.uid && {
+                              opacity: 0,
+                              pointerEvents: "none",
+                            },
+                          ]}
                         >
                           <Image
                             source={require("../../img/icon_delete.png")}
@@ -995,6 +1022,11 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#5E433B",
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,
   },
   modalOverlay: {
     flex: 1,
