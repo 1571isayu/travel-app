@@ -5,6 +5,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 
@@ -206,20 +207,37 @@ export default function AdventureScreen() {
     }
 
     try {
-      const itineraryRef = collection(
-        db,
-        "adventures",
-        id as string,
-        "itinerary",
-      );
+      if (editingId) {
+        // 🌟 編輯模式：更新現有的雲端文件
+        const itemRef = doc(
+          db,
+          "adventures",
+          id as string,
+          "itinerary",
+          editingId,
+        );
 
-      await addDoc(itineraryRef, {
-        ...newItemData,
-        day: currentDay,
-        createdBy: myProfile.uid,
-      });
+        await updateDoc(itemRef, {
+          ...newItemData,
+          day: currentDay, // 確保天數正確
+        });
+      } else {
+        // 🌟 新增模式：建立全新的雲端文件
+        const itineraryRef = collection(
+          db,
+          "adventures",
+          id as string,
+          "itinerary",
+        );
+
+        await addDoc(itineraryRef, {
+          ...newItemData,
+          day: currentDay,
+          createdBy: myProfile.uid,
+        });
+      }
     } catch (error) {
-      console.error("行程上傳失敗:", error);
+      console.error("行程儲存失敗:", error);
       Alert.alert("錯誤", "無法同步行程到雲端");
     }
   };
