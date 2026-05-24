@@ -119,6 +119,11 @@ export default function AdventureScreen() {
   useEffect(() => {
     if (!id) return;
 
+    // 🌟 新增這一行：將當前的冒險房間 ID 存入快取
+    AsyncStorage.setItem("@current_adventure_id", id as string).catch((err) =>
+      console.error("儲存冒險 ID 失敗:", err),
+    );
+
     AsyncStorage.getItem("@user_profile").then((str) => {
       if (str) setMyProfile(JSON.parse(str));
     });
