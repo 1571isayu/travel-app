@@ -1,129 +1,568 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
-import { Image, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import {
+  doc,
+  onSnapshot,
+  updateDoc,
+  arrayRemove,
+  getDoc,
+} from "firebase/firestore";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { db } from "../../firebaseConfig";
 
+// ─────────────────────────────────────────────
+// 角色圖對照表（直接用 characterId 對應圖片）
+// ─────────────────────────────────────────────
+const CHARACTER_MAP: Record<string, any> = {
+  bear: require("../../character/character_bear.gif"),
+  cat: require("../../character/character_cat.gif"),
+};
+
+function getCharacterSource(characterId: string | null | undefined) {
+  if (!characterId) return null;
+  return CHARACTER_MAP[characterId] ?? null;
+}
+
+// ─────────────────────────────────────────────
+// 使用教學資料
+// ─────────────────────────────────────────────
+const TUTORIAL_STEPS = [
+  {
+    icon: "🗺️",
+    title: "建立冒險",
+    desc: "在首頁點擊「CREATE」輸入冒險名稱與日期，系統會自動產生一組隊伍 ID。",
+  },
+  {
+    icon: "🤝",
+    title: "邀請隊友",
+    desc: "把隊伍 ID 分享給朋友，朋友在首頁點擊「JOIN」輸入 ID 即可加入，最多 5 人。",
+  },
+  {
+    icon: "📅",
+    title: "新增行程",
+    desc: "進入冒險後點右下角「＋」按鈕，填寫時間、地點、備註，立即同步給所有隊友。",
+  },
+  {
+    icon: "🗺️",
+    title: "查看地圖",
+    desc: "行程頁右上角的地圖圖示，可依天數查看當天所有地點的路線規劃。",
+  },
+  {
+    icon: "💰",
+    title: "旅費分帳",
+    desc: "切換到錢包頁面，新增每筆消費並選擇分擔人，系統自動計算每人應付金額。",
+  },
+  {
+    icon: "🎒",
+    title: "旅遊清單",
+    desc: "背包頁可以建立行前準備清單，勾選已完成的項目，不怕出門忘東忘西！",
+  },
+];
+
+// ─────────────────────────────────────────────
+// 主元件
+// ─────────────────────────────────────────────
 export default function TeamScreen() {
-  // 接收從 Home 傳過來的參數
   const { id, name } = useLocalSearchParams();
-  const [userName, setUserName] = useState("冒險者");
-  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+
+  // 本機個人資料（永遠以這份為準顯示自己頭像）
+  const [myName, setMyName] = useState("冒險者");
+  const [myAvatar, setMyAvatar] = useState<string | null>(null);
+  const [myUid, setMyUid] = useState<string | null>(null);
+
+  // Firebase 隊伍成員
+  const [members, setMembers] = useState<any[]>([]);
+
+  // UI 狀態
+  const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [leaveConfirmVisible, setLeaveConfirmVisible] = useState(false);
+
+  // ── 載入個人資料（每次頁面 focus 都重新讀，讓 setup 編輯後立即反映）──
+  const loadProfile = useCallback(async () => {
+    try {
+      const stored = await AsyncStorage.getItem("@user_profile");
+      if (stored) {
+        const profile = JSON.parse(stored);
+        if (profile.name) setMyName(profile.name);
+        if (profile.characterId) setMyAvatar(profile.characterId); // 存 characterId
+        if (profile.uid) setMyUid(profile.uid);
+      }
+    } catch (e) {
+      console.error("讀取個人資料失敗:", e);
+    }
+  }, []);
+
+  // useFocusEffect：每次切換到這個 tab 都執行一次，確保頭像是最新的
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile]),
+  );
+
+  // ── Firebase 即時監聽隊伍成員，並去 users/{uid} 抓最新名稱與頭像 ──
+  useEffect(() => {
+    if (!id) return;
+    const unsub = onSnapshot(
+      doc(db, "adventures", id as string),
+      async (snap) => {
+        if (!snap.exists()) return;
+        const rawMembers: any[] = snap.data().members || [];
+
+        // 用每個成員的 uid 去 users collection 抓 displayName / characterId
+        const enriched = await Promise.all(
+          rawMembers.map(async (m) => {
+            if (!m.uid) return m;
+            try {
+              const userSnap = await getDoc(doc(db, "users", m.uid));
+              if (userSnap.exists()) {
+                const u = userSnap.data();
+                return {
+                  ...m,
+                  name: u.displayName || m.name || "冒險者",
+                  characterId: u.characterId || null,
+                };
+              }
+            } catch (e) {
+              console.warn("抓取成員資料失敗:", m.uid, e);
+            }
+            return m;
+          }),
+        );
+        setMembers(enriched);
+      },
+    );
+    return () => unsub();
+  }, [id]);
+
+  // ── 分享隊伍 ID ──
   const onShare = async () => {
     try {
       await Share.share({
         message: `快來加入我的冒險【${name}】！隊伍 ID 是：${id}`,
       });
-    } catch (error) {
-      console.log(error);
+    } catch (e) {
+      console.log(e);
     }
   };
 
-  const loadUserProfile = async () => {
+  // ── 離開隊伍 ──
+  const handleLeave = async () => {
+    setLeaveConfirmVisible(false);
+    if (!id || !myUid) return;
+
     try {
-      const storedProfile = await AsyncStorage.getItem("@user_profile");
-      if (storedProfile) {
-        const { name, avatar } = JSON.parse(storedProfile);
-        if (name) setUserName(name);
-        if (avatar) setUserAvatar(avatar);
+      // 1. 從 Firebase members 移除自己
+      const adventureRef = doc(db, "adventures", id as string);
+      const snap = await getDoc(adventureRef);
+      if (snap.exists()) {
+        const currentMembers: any[] = snap.data().members || [];
+        const me = currentMembers.find((m) => m.uid === myUid);
+        if (me) {
+          await updateDoc(adventureRef, { members: arrayRemove(me) });
+        }
       }
-    } catch (error) {
-      console.error("讀取使用者資料失敗:", error);
+
+      // 2. 從本機 @my_adventures_v2 移除這筆
+      const savedData = await AsyncStorage.getItem("@my_adventures_v2");
+      if (savedData) {
+        const list = JSON.parse(savedData);
+        const updated = list.filter((adv: any) => adv.id !== id);
+        await AsyncStorage.setItem(
+          "@my_adventures_v2",
+          JSON.stringify(updated),
+        );
+      }
+
+      // 3. 清除當前冒險快取
+      await AsyncStorage.removeItem("@current_adventure_id");
+
+      Alert.alert("已離開隊伍", "你已成功退出此冒險。", [
+        { text: "OK", onPress: () => router.replace("/home") },
+      ]);
+    } catch (e) {
+      console.error("離開隊伍失敗:", e);
+      Alert.alert("錯誤", "無法離開隊伍，請稍後再試");
     }
   };
-  loadUserProfile();
+
+  // ── 判斷是否為隊長（members 陣列第一位）──
+  const isLeader = (uid: string) =>
+    members.length > 0 && members[0].uid === uid;
+
+  // ── 渲染單一成員列 ──
+  const renderMember = (m: any, idx: number) => {
+    const isSelf = m.uid === myUid;
+    const displayName = isSelf ? myName : m.name || "冒險者";
+    const borderColor = m.color || "#5E433B";
+
+    // 頭像直接用 characterId 對應本地圖片，不依賴任何 URI
+    const characterId = isSelf ? myAvatar : m.characterId;
+    const avatarSource = getCharacterSource(characterId);
+
+    return (
+      <View key={m.uid || idx} style={styles.memberRow}>
+        {avatarSource ? (
+          <Image
+            source={avatarSource}
+            style={[styles.memberAvatar, { borderColor }]}
+          />
+        ) : (
+          <View style={[styles.memberAvatarPlaceholder, { borderColor }]} />
+        )}
+        <View style={styles.memberInfo}>
+          <Text style={styles.memberName}>{displayName}</Text>
+          {isLeader(m.uid) && <Text style={styles.memberBadge}>隊長</Text>}
+        </View>
+      </View>
+    );
+  };
+
+  // ── 排序：自己永遠排第一，隊長其次，其他人照原順序 ──
+  const sortedMembers = [...members].sort((a, b) => {
+    if (a.uid === myUid) return -1;
+    if (b.uid === myUid) return 1;
+    if (isLeader(a.uid)) return -1;
+    if (isLeader(b.uid)) return 1;
+    return 0;
+  });
+
+  // ──────────────────────────────────────────
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>MY TEAM</Text>
-      </View>
-
-      <View style={styles.idCard}>
-        <Text style={styles.label}>目前冒險：{name || '未設定'}</Text>
-        <View style={styles.idBox}>
-          <Text style={styles.idLabel}>隊伍分享代碼</Text>
-          <Text style={styles.idText}>{id || '------'}</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* ── 自己的頭像區 ── */}
+        <View style={styles.avatarSection}>
+          <View style={styles.avatarWrapper}>
+            {myAvatar ? (
+              <Image
+                source={getCharacterSource(myAvatar)}
+                style={styles.avatarImg}
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder} />
+            )}
+          </View>
+          <Text style={styles.avatarName}>{myName.toUpperCase()}</Text>
         </View>
 
-        <TouchableOpacity style={styles.shareButton} onPress={onShare}>
-          <Text style={styles.shareText}>分享 ID 給隊友</Text>
-        </TouchableOpacity>
-      </View>
+        {/* ── SETTING 卡片 ── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>SETTING</Text>
 
-      <View style={styles.memberList}>
-        <Text style={styles.listTitle}>隊伍成員 (1/5)</Text>
-        <View style={styles.memberItem}>
-          {userAvatar ? (
-            <Image source={{ uri: userAvatar }} style={styles.avatarBox} />
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() =>
+              router.push({ pathname: "/setup", params: { mode: "edit" } })
+            }
+          >
+            <View style={styles.menuLeft}>
+              <Text style={styles.menuIcon}>✏️</Text>
+              <Text style={styles.menuText}>編輯個人檔案</Text>
+            </View>
+            <Text style={styles.menuChevron}>›</Text>
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => setTutorialVisible(true)}
+          >
+            <View style={styles.menuLeft}>
+              <Text style={styles.menuIcon}>❓</Text>
+              <Text style={styles.menuText}>使用教學</Text>
+            </View>
+            <Text style={styles.menuChevron}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── TEAM MEMBER 卡片 ── */}
+        <View style={styles.card}>
+          <View style={styles.cardTitleRow}>
+            <Text style={styles.cardTitle}>TEAM MEMBER</Text>
+            <TouchableOpacity onPress={onShare} style={styles.inviteBtn}>
+              <Text style={styles.inviteIcon}>👤+</Text>
+            </TouchableOpacity>
+          </View>
+
+          {members.length === 0 ? (
+            <Text style={styles.emptyMember}>尚無成員資料</Text>
           ) : (
-            <View style={styles.avatarBoxPlaceholder} />
+            sortedMembers.map((m, idx) => renderMember(m, idx))
           )}
-          <Text style={styles.memberName} numberOfLines={1}>
-            {userName}(隊長)
-          </Text>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity
+            style={styles.leaveRow}
+            onPress={() => setLeaveConfirmVisible(true)}
+          >
+            <Text style={styles.leaveIcon}>↪</Text>
+            <Text style={styles.leaveText}>離開隊伍</Text>
+          </TouchableOpacity>
         </View>
-        {/* 這裡之後會列出從 Firebase 抓到的其他成員 */}
-      </View>
+      </ScrollView>
+
+      {/* ══ 使用教學 Modal ══ */}
+      <Modal visible={tutorialVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.tutorialModal}>
+            <Text style={styles.tutorialTitle}>📖 使用教學</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {TUTORIAL_STEPS.map((step, idx) => (
+                <View key={idx} style={styles.tutorialStep}>
+                  <View style={styles.tutorialStepHeader}>
+                    <Text style={styles.tutorialStepIcon}>{step.icon}</Text>
+                    <Text style={styles.tutorialStepTitle}>
+                      {idx + 1}. {step.title}
+                    </Text>
+                  </View>
+                  <Text style={styles.tutorialStepDesc}>{step.desc}</Text>
+                </View>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.tutorialCloseBtn}
+              onPress={() => setTutorialVisible(false)}
+            >
+              <Text style={styles.tutorialCloseBtnText}>OK，我知道了！</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══ 離開確認 Modal ══ */}
+      <Modal visible={leaveConfirmVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.confirmModal}>
+            <Text style={styles.confirmTitle}>離開隊伍</Text>
+            <Text style={styles.confirmDesc}>
+              確定要離開【{name}】嗎？{"\n"}
+              離開後此冒險將不會出現在你的列表。
+            </Text>
+            <View style={styles.confirmBtnRow}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmCancelBtn]}
+                onPress={() => setLeaveConfirmVisible(false)}
+              >
+                <Text style={styles.confirmCancelText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmLeaveBtn]}
+                onPress={handleLeave}
+              >
+                <Text style={styles.confirmLeaveText}>離開</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
+// ─────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────
+const BROWN = "#5E433B";
+const LIGHT_BROWN = "#8D6E63";
+const BG = "#F2EDE4";
+const CARD_BG = "#FDFAF2";
+const ORANGE = "#EC7424";
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFDF0', padding: 20, paddingTop: 60 },
-  header: { alignItems: 'center', marginBottom: 30 },
-  title: { fontSize: 28, fontFamily: 'PressStart2P_400Regular', color: '#5E433B' },
-  idCard: {
-    backgroundColor: '#FFFDF9',
+  container: { flex: 1, backgroundColor: BG },
+  scrollContent: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    gap: 16,
+  },
+
+  // 頭像區
+  avatarSection: { alignItems: "center", marginBottom: 8, gap: 10 },
+  avatarWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
     borderWidth: 3,
-    borderColor: '#5E433B',
-    padding: 20,
-    marginBottom: 30,
-    shadowColor: "#000",
-    shadowOffset: { width: 6, height: 6 },
+    borderColor: BROWN,
+    overflow: "hidden",
+    backgroundColor: "#D7CCC8",
+    shadowColor: BROWN,
+    shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 1,
     shadowRadius: 0,
+    elevation: 6,
   },
-  label: { fontSize: 16, fontWeight: 'bold', color: '#5E433B', marginBottom: 15 },
-  idBox: {
-    backgroundColor: '#FDFBF0',
+  avatarImg: { width: "100%", height: "100%" },
+  avatarPlaceholder: { flex: 1, backgroundColor: "#D7CCC8" },
+  avatarName: { fontFamily: "PressStart2P", fontSize: 14, color: BROWN },
+
+  // 卡片
+  card: {
+    backgroundColor: CARD_BG,
     borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: '#8D6E63',
-    padding: 15,
-    alignItems: 'center',
+    borderColor: BROWN,
+    padding: 20,
+    gap: 14,
+    shadowColor: BROWN,
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 0,
+    elevation: 4,
   },
-  idLabel: { fontSize: 12, color: '#8D6E63', marginBottom: 5 },
-  idText: { fontSize: 24, fontWeight: 'bold', color: '#E84A41', letterSpacing: 5 },
-  shareButton: {
-    backgroundColor: '#5E433B',
-    padding: 12,
-    marginTop: 15,
-    alignItems: 'center',
+  cardTitle: {
+    fontFamily: "PressStart2P",
+    fontSize: 12,
+    color: LIGHT_BROWN,
+    letterSpacing: 1,
   },
-  shareText: { color: '#FFF', fontWeight: 'bold' },
-  memberList: { flex: 1 },
-  listTitle: { fontSize: 18, fontWeight: 'bold', color: '#5E433B', marginBottom: 15 },
-  memberItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#D7CCC8',
+  cardTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  avatarPlaceholder: { width: 40, height: 40, backgroundColor: '#D7CCC8', marginRight: 15 },
-  memberName: { fontSize: 16, color: '#5E433B' },
-  avatarBox: {
-    width: 60,
-    height: 60,
-    borderRadius: 3,
+
+  // 選單列
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+  menuLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  menuIcon: { fontSize: 18 },
+  menuText: { fontSize: 16, color: BROWN, fontWeight: "bold" },
+  menuChevron: { fontSize: 22, color: LIGHT_BROWN, fontWeight: "bold" },
+  divider: { height: 1, backgroundColor: "#D7CCC8" },
+
+  // 邀請
+  inviteBtn: { padding: 4 },
+  inviteIcon: { fontSize: 20 },
+
+  // 成員
+  emptyMember: { color: LIGHT_BROWN, fontSize: 14, fontWeight: "bold" },
+  memberRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  memberAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     borderWidth: 3,
-    borderColor: "#5E433B",
-  },
-  avatarBoxPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
     backgroundColor: "#D7CCC8",
-    borderWidth: 3,
-    borderColor: "#5E433B",
   },
+  memberAvatarPlaceholder: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 3,
+    backgroundColor: "#D7CCC8",
+  },
+  memberInfo: { gap: 4 },
+  memberName: { fontSize: 16, color: BROWN, fontWeight: "bold" },
+  memberBadge: {
+    fontSize: 11,
+    color: ORANGE,
+    fontWeight: "bold",
+    borderWidth: 1,
+    borderColor: ORANGE,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    alignSelf: "flex-start",
+  },
+
+  // 離開
+  leaveRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  leaveIcon: { fontSize: 18, color: ORANGE, fontWeight: "bold" },
+  leaveText: { fontSize: 16, color: ORANGE, fontWeight: "bold" },
+
+  // Modal 共用
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  // 教學 Modal
+  tutorialModal: {
+    width: "90%",
+    maxHeight: "80%",
+    backgroundColor: CARD_BG,
+    borderWidth: 3,
+    borderColor: BROWN,
+    padding: 24,
+    gap: 16,
+  },
+  tutorialTitle: {
+    fontFamily: "PressStart2P",
+    fontSize: 13,
+    color: BROWN,
+    textAlign: "center",
+  },
+  tutorialStep: { marginBottom: 18, gap: 6 },
+  tutorialStepHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  tutorialStepIcon: { fontSize: 20 },
+  tutorialStepTitle: { fontSize: 15, fontWeight: "bold", color: BROWN },
+  tutorialStepDesc: {
+    fontSize: 14,
+    color: LIGHT_BROWN,
+    lineHeight: 22,
+    paddingLeft: 28,
+  },
+  tutorialCloseBtn: {
+    backgroundColor: BROWN,
+    padding: 14,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  tutorialCloseBtnText: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
+
+  // 離開確認 Modal
+  confirmModal: {
+    width: "85%",
+    backgroundColor: CARD_BG,
+    borderWidth: 3,
+    borderColor: BROWN,
+    padding: 24,
+    gap: 16,
+  },
+  confirmTitle: {
+    fontFamily: "PressStart2P",
+    fontSize: 13,
+    color: BROWN,
+    textAlign: "center",
+  },
+  confirmDesc: {
+    fontSize: 15,
+    color: LIGHT_BROWN,
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  confirmBtnRow: { flexDirection: "row", gap: 12, marginTop: 4 },
+  confirmBtn: {
+    flex: 1,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: BROWN,
+    alignItems: "center",
+  },
+  confirmCancelBtn: { backgroundColor: "#F4F0E8" },
+  confirmLeaveBtn: { backgroundColor: "#E84A41" },
+  confirmCancelText: { fontWeight: "bold", color: BROWN, fontSize: 14 },
+  confirmLeaveText: { fontWeight: "bold", color: "#FFF", fontSize: 14 },
 });
