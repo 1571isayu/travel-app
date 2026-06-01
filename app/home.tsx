@@ -77,6 +77,7 @@ type AdventureRecord = {
   startDate: string;
   endDate: string;
   peopleCount: number;
+  isCreator?: boolean; // 🌟 新增：用來區分是自創還是加入別人的
 };
 
 // 角色的顏色列表
@@ -149,6 +150,7 @@ export default function HomeScreen() {
         startDate: start,
         endDate: end,
         peopleCount: 1,
+        isCreator: true, // 🌟 標記：這是自己創立的
       };
       const updatedList = [newAdventure, ...myAdventures];
       setMyAdventures(updatedList);
@@ -201,13 +203,16 @@ export default function HomeScreen() {
         // 同步保存到本地歷史紀錄（這樣以後在 SELECT 區塊也可以直接點擊進入）
         const isExistInLocal = myAdventures.some((adv) => adv.id === trimmedId);
         if (!isExistInLocal) {
+          const updatedDocSnap = await getDoc(docRef);
+          const latestData = updatedDocSnap.data() || adventureData;
+          const latestMembers = latestData.members || [];
           const joinedAdventure: AdventureRecord = {
             id: trimmedId,
             name: adventureData.name,
             startDate: adventureData.startDate,
             endDate: adventureData.endDate,
-            peopleCount:
-              (adventureData.members || []).length + (isAlreadyMember ? 0 : 1),
+            peopleCount: latestMembers.length, // 🌟 確保撈到的是包含自己在內的最即時總人數
+            isCreator: false, // 🌟 標記：這是加入別人的
           };
           const updatedList = [joinedAdventure, ...myAdventures];
           setMyAdventures(updatedList);
@@ -250,17 +255,56 @@ export default function HomeScreen() {
   const [isDateModalVisible, setDateModalVisible] = useState(false);
   const [joinId, setJoinId] = useState("");
   const [myAdventures, setMyAdventures] = useState<AdventureRecord[]>([]);
-
+  // --- 🌟 刪除提示框專用狀態 ---
+  const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [selectedDeleteId, setSelectedDeleteId] = useState<string | null>(null);
   useEffect(() => {
-    const loadAdventures = async () => {
+    const loadAndSyncAdventures = async () => {
       try {
+        // 1. 先快速讀取本地快取，讓畫面不卡頓
         const savedData = await AsyncStorage.getItem("@my_adventures_v2");
-        if (savedData) setMyAdventures(JSON.parse(savedData));
+        let localList: AdventureRecord[] = savedData ? JSON.parse(savedData) : [];
+        if (localList.length > 0) {
+          setMyAdventures(localList);
+        }
+
+        // 2. 🌟 聯動雲端：遍歷本地的房間 ID，去 Firebase 抓取最新的人數與資料
+        if (localList.length > 0) {
+          const updatedList = await Promise.all(
+            localList.map(async (adv) => {
+              try {
+                const docRef = doc(db, "adventures", adv.id);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                  const cloudData = docSnap.data();
+                  const membersCount = (cloudData.members || []).length;
+
+                  return {
+                    ...adv,
+                    name: cloudData.name || adv.name,
+                    startDate: cloudData.startDate || adv.startDate,
+                    endDate: cloudData.endDate || adv.endDate,
+                    peopleCount: membersCount, // 🌟 自動同步 Firebase 雲端最新成員總人數
+                  };
+                }
+              } catch (err) {
+                console.error(`同步房間 ${adv.id} 失敗:`, err);
+              }
+              return adv; // 如果雲端找不到或失敗，維持原樣
+            })
+          );
+
+          // 3. 更新狀態並寫回本地快取
+          setMyAdventures(updatedList);
+          await AsyncStorage.setItem("@my_adventures_v2", JSON.stringify(updatedList));
+        }
       } catch (e) {
-        console.error("讀取歷史紀錄失敗", e);
+        console.error("讀取或同步歷史紀錄失敗", e);
       }
     };
-    loadAdventures();
+
+    loadAndSyncAdventures();
   }, []);
 
   const openDateModal = () => {
@@ -335,21 +379,25 @@ export default function HomeScreen() {
   };
 
   const handleDeleteAdventure = (id: string) => {
-    Alert.alert("刪除冒險", "確定要永久刪除這項冒險紀錄嗎？", [
-      { text: "取消", style: "cancel" },
-      {
-        text: "刪除",
-        style: "destructive",
-        onPress: async () => {
-          const updatedList = myAdventures.filter((adv) => adv.id !== id);
-          setMyAdventures(updatedList);
-          await AsyncStorage.setItem(
-            "@my_adventures_v2",
-            JSON.stringify(updatedList),
-          );
-        },
-      },
-    ]);
+    setSelectedDeleteId(id);    // 暫存要刪除的 ID
+    setDeleteModalVisible(true); // 打開自訂的 Modal提示框
+  };
+
+  // 🌟 新增：按下 OK 後真正執行刪除的函數
+  const confirmDeleteAdventure = async () => {
+    if (!selectedDeleteId) return;
+
+    const id = selectedDeleteId;
+    const updatedList = myAdventures.filter((adv) => adv.id !== id);
+    setMyAdventures(updatedList);
+    await AsyncStorage.setItem(
+      "@my_adventures_v2",
+      JSON.stringify(updatedList),
+    );
+
+    // 關閉 Modal 並清空狀態
+    setDeleteModalVisible(false);
+    setSelectedDeleteId(null);
   };
 
   const renderPixelText = (text: string) => {
@@ -405,67 +453,22 @@ export default function HomeScreen() {
           >
             <View style={styles.scrollContent}>
               {/* CREATE SECTION */}
-              <View style={styles.create_container}>
-                <View style={styles.title_group}>
-                  <Text style={texts.title20}>CREATE</Text>
-                  {/* 🌟 修正點：將 onPress 綁定為新的 handleCreateAdventure */}
-                  <Pressable
-                    onPress={() =>
-                      handleCreateAdventure(adventureName, startDate, endDate)
-                    }
-                  >
-                    {({ pressed }) => (
-                      <View
-                        style={pressed && { transform: [{ translateY: 2 }] }}
-                      >
-                        <Image
-                          source={require("../img/caret_right.png")}
-                          style={[styles.caret, { opacity: pressed ? 0 : 1 }]}
-                        />
-                        <Image
-                          source={require("../img/caret_right_pressed.png")}
-                          style={[
-                            styles.caret,
-                            styles.caret_absolute,
-                            { opacity: pressed ? 1 : 0 },
-                          ]}
-                        />
-                      </View>
-                    )}
-                  </Pressable>
-                </View>
-                <TextInput
-                  style={fieldStyles.textField}
-                  placeholder="請輸入標題"
-                  placeholderTextColor="#8D6E63"
-                  value={adventureName}
-                  onChangeText={setAdventureName}
-                />
-
-                <TouchableOpacity onPress={openDateModal}>
-                  <Text
+              {/* 🌟 用 Pressable 包裹整個大格子 */}
+              <Pressable
+                onPress={() => handleCreateAdventure(adventureName, startDate, endDate)}
+              >
+                {({ pressed }) => (
+                  <View
                     style={[
-                      fieldStyles.textField,
-                      !startDate && !endDate ? { color: "#8D6E63" } : {},
+                      styles.create_container,
+                      pressed && { transform: [{ translateY: 2 }] }, // 整個格子一起往下動 2 單位
                     ]}
                   >
-                    {startDate && endDate
-                      ? `${startDate} ~ ${endDate}`
-                      : "請點擊選擇日期"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* JOIN SECTION */}
-              <View style={styles.join_container}>
-                <View style={styles.title_group}>
-                  <Text style={texts.title20}>JOIN</Text>
-                  {/* 🌟 修正點：將 onPress 綁定為新的 handleJoinAdventure */}
-                  <Pressable onPress={() => handleJoinAdventure(joinId)}>
-                    {({ pressed }) => (
-                      <View
-                        style={pressed && { transform: [{ translateY: 2 }] }}
-                      >
+                    {/* title_group 移除了獨立的移動效果，改由外層的 pressed 統一控制 */}
+                    <View style={styles.title_group}>
+                      <Text style={texts.title20}>CREATE</Text>
+                      <View>
+                        {/* 原本 title_group 的獨立按鈕效果拿掉，同步最外層格子的 pressed 狀態 */}
                         <Image
                           source={require("../img/caret_right.png")}
                           style={[styles.caret, { opacity: pressed ? 0 : 1 }]}
@@ -479,18 +482,75 @@ export default function HomeScreen() {
                           ]}
                         />
                       </View>
-                    )}
-                  </Pressable>
-                </View>
-                <TextInput
-                  style={fieldStyles.textField}
-                  placeholder="請輸入冒險ID"
-                  placeholderTextColor="#8D6E63"
-                  autoCapitalize="characters"
-                  value={joinId}
-                  onChangeText={setJoinId}
-                />
-              </View>
+                    </View>
+
+                    {/* 輸入框加了 pointerEvents="auto"，確保點擊輸入框時是觸發打字，而不是讓格子下沉 */}
+                    <TextInput
+                      style={fieldStyles.textField}
+                      placeholder="請輸入標題"
+                      placeholderTextColor="#8D6E63"
+                      value={adventureName}
+                      onChangeText={setAdventureName}
+                      pointerEvents="auto"
+                    />
+
+                    <TouchableOpacity
+                      onPress={openDateModal}
+                      activeOpacity={1} // 讓日期點擊時不要跟著外層閃爍或落差
+                    >
+                      <Text
+                        style={[
+                          fieldStyles.textField,
+                          !startDate && !endDate ? { color: "#8D6E63" } : {},
+                        ]}
+                      >
+                        {startDate && endDate ? `${startDate} ~ ${endDate}` : "請點擊選擇日期"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </Pressable>
+              {/* JOIN SECTION */}
+              {/* 🌟 用 Pressable 包裹整個大格子 */}
+              <Pressable onPress={() => handleJoinAdventure(joinId)}>
+                {({ pressed }) => (
+                  <View
+                    style={[
+                      styles.join_container,
+                      pressed && { transform: [{ translateY: 2 }] }, // 整個格子一起往下動 2 單位
+                    ]}
+                  >
+                    <View style={styles.title_group}>
+                      <Text style={texts.title20}>JOIN</Text>
+                      <View>
+                        {/* 同步外層的 pressed 狀態 */}
+                        <Image
+                          source={require("../img/caret_right.png")}
+                          style={[styles.caret, { opacity: pressed ? 0 : 1 }]}
+                        />
+                        <Image
+                          source={require("../img/caret_right_pressed.png")}
+                          style={[
+                            styles.caret,
+                            styles.caret_absolute,
+                            { opacity: pressed ? 1 : 0 },
+                          ]}
+                        />
+                      </View>
+                    </View>
+
+                    <TextInput
+                      style={fieldStyles.textField}
+                      placeholder="請輸入冒險ID"
+                      placeholderTextColor="#8D6E63"
+                      autoCapitalize="characters"
+                      value={joinId}
+                      onChangeText={setJoinId}
+                      pointerEvents="auto"
+                    />
+                  </View>
+                )}
+              </Pressable>
 
               {/* SELECT SECTION */}
               <View style={styles.select_container}>
@@ -500,43 +560,56 @@ export default function HomeScreen() {
                 {myAdventures.length === 0 ? (
                   <Text style={texts.subtitle2}>目前沒有冒險紀錄</Text>
                 ) : (
-                  myAdventures.map((adv) => (
-                    <TouchableOpacity
-                      key={adv.id}
-                      style={styles.history_container}
-                      onPress={() => handleSelectAdventure(adv)}
-                    >
-                      <View style={styles.historyHeaderRow}>
-                        <Text style={styles.historyName}>
-                          {renderPixelText(
-                            adv.name ? adv.name.toUpperCase() : "UNTITLED",
-                          )}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.deleteTouch}
-                          onPress={() => handleDeleteAdventure(adv.id)}
-                        >
-                          <Image
-                            source={require("../img/icon_delete.png")}
-                            style={styles.deleteIcon}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      <Text style={styles.historyDate}>
-                        {adv.startDate} ~ {adv.endDate}
-                      </Text>
-                      <View style={styles.historyInfoRow}>
-                        <Text style={styles.historyInfoText}>
-                          <Image
-                            source={require("../img/icon_user.png")}
-                            style={{ width: 16, height: 18 }}
-                          />{" "}
-                          ID: {adv.id}{" "}
-                          {/* 🌟 顯示房間短 ID 方便使用者查看或分享 */}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))
+                  myAdventures.map((adv) => {
+                    // 動態判斷背景顏色：自創用橘色，加入用綠色
+                    const cardBackgroundColor = adv.isCreator ? COLORS.secondary : COLORS.disable;
+
+                    return (
+                      // 🌟 1. 改用大 Pressable 包裹整張歷史字卡
+                      // 🌟 改用一個統一的 Pressable 監聽「短按」與「長按」
+                      <Pressable
+                        key={adv.id}
+                        onPress={() => handleSelectAdventure(adv)} // 👈 短按：直接進入房間
+                        onLongPress={() => handleDeleteAdventure(adv.id)} // 👈 長按：跳出刪除提示框
+                        delayLongPress={600} // 👈 觸發長按所需的秒數（單位微秒，600毫秒大約是 0.6 秒，手感最好）
+                      >
+                        {({ pressed }) => (
+                          <View
+                            style={[
+                              styles.history_container,
+                              { backgroundColor: cardBackgroundColor },
+                              // 🌟 2. 根據按下狀態，動態切換陰影與下沉動態
+                              pressed && { transform: [{ translateY: 2 }] },
+                            ]}
+                          >
+                            <View style={styles.historyHeaderRow}>
+                              <Text style={styles.historyName}>
+                                {renderPixelText(
+                                  adv.name ? adv.name.toUpperCase() : "UNTITLED",
+                                )}
+                              </Text>
+
+
+                            </View>
+
+                            <Text style={styles.historyDate}>
+                              {adv.startDate} ~ {adv.endDate}
+                            </Text>
+
+                            <View style={styles.historyInfoRow}>
+                              <Text style={styles.historyInfoText}>
+                                <Image
+                                  source={require("../img/icon_user.png")}
+                                  style={{ width: 16, height: 18 }}
+                                />{" "}{adv.peopleCount || 1}人
+                                ID: {adv.id}{" "}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })
                 )}
               </View>
             </View>
@@ -582,6 +655,63 @@ export default function HomeScreen() {
               >
                 <Text style={styles.modalConfirmText}>確認</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* 🌟 CUSTOM DELETE MODAL */}
+      <Modal visible={isDeleteModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.customDelModalContent}>
+            
+            {/* 標題與內文 */}
+            <Text style={styles.customDelTitle}>DELETE?</Text>
+            <Text style={styles.customDelSubtitle}>
+              {renderPixelText("刪除後此冒險將無法復原！")}
+            </Text>
+
+            {/* 按鈕區塊 */}
+            <View style={{ flexDirection: "row", gap: 15, marginTop: 5 }}>
+              
+              {/* CANCEL 按鈕 */}
+              <Pressable
+                style={{ flex: 1 }}
+                onPress={() => {
+                  setDeleteModalVisible(false);
+                  setSelectedDeleteId(null);
+                }}
+              >
+                {({ pressed }) => (
+                  <View
+                    style={[
+                      styles.customDelBtn,
+                      styles.customDelCancelBtn,
+                      pressed ? styles.delBtnPressedStyle : styles.delBtnShadowStyle,
+                    ]}
+                  >
+                    <Text style={styles.customDelCancelText}>cancel</Text>
+                  </View>
+                )}
+              </Pressable>
+
+              {/* OK 按鈕 */}
+              <Pressable
+                style={{ flex: 1 }}
+                onPress={confirmDeleteAdventure}
+              >
+                {({ pressed }) => (
+                  <View
+                    style={[
+                      styles.customDelBtn,
+                      styles.customDelOkBtn,
+                      pressed ? styles.delBtnPressedStyle : styles.delBtnShadowStyle,
+                    ]}
+                  >
+                    <Text style={styles.customDelCancelText}>OK</Text>
+                  </View>
+                )}
+              </Pressable>
+
             </View>
           </View>
         </View>
@@ -669,6 +799,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "auto",
     gap: 12,
+    borderBottomWidth: 4,
   },
   join_container: {
     backgroundColor: COLORS.disable,
@@ -679,6 +810,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "auto",
     gap: 12,
+    borderBottomWidth: 4,
   },
   select_container: {
     backgroundColor: COLORS.bg2,
@@ -695,6 +827,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 8,
+
   },
   historyName: {
     fontFamily: "PressStart2P_400Regular",
@@ -760,6 +893,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#5E433B",
     padding: 12,
+    borderBottomWidth: 4,
   },
   historyDate: {
     fontSize: 12,
@@ -833,4 +967,83 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#FFF",
   },
+  // 提示框外殼：白色基底、深色邊框、圓角
+  customDelModalContent: {
+    width: "85%",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 3,
+    borderColor: "#4A342E", // 配合你原本的深色邊框線
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+    gap: 16,
+  },
+  customDelTitle: {
+    fontFamily: "PressStart2P",
+    fontSize: 22,
+    color:COLORS.line,
+    letterSpacing: 1,
+  },
+  customDelSubtitle: {
+    color: "#8D6E63",
+    marginBottom: 8,
+  },
+  // 按鈕基礎樣式
+  customDelBtn: {
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // cancel 淺綠色背景 (根據你的圖稿吸色)
+  customDelCancelBtn: {
+    backgroundColor:COLORS.disable, // 帶灰感的像素粉綠
+  },
+  // OK 亮橘色背景 (根據你的圖稿吸色)
+  customDelOkBtn: {
+    backgroundColor:COLORS.primary, // 經典亮橘色
+  },
+  // 按鈕文字字型與顏色
+  customDelCancelText: {
+    fontFamily: "PressStart2P",
+    fontSize: 14,
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0,0,0,0.3)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
+  },
+  customDelOkText: {
+    fontFamily: "PressStart2P",
+    fontSize: 16,
+    color: "#FFFFFF",
+    fontWeight: "bold",
+  },
+  
+  // 🌟 按鈕沒按下時的硬陰影（右和下加粗）
+  delBtnShadowStyle: {
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+  },
+  // 🌟 按鈕按下時的下沉壓縮動態
+  delBtnPressedStyle: {
+    transform: [{ translateY: 2 }],
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+  },
+  container_shadow_style: {
+  borderTopWidth: 2,
+  borderLeftWidth: 2,
+  borderRightWidth: 2,   
+  borderBottomWidth: 4,  // 下邊框加粗
+  borderColor: COLORS.line, 
+},
+container_pressed_style: {
+  transform: [{ translateY: 2 }], // 按下時往右下沉
+  borderTopWidth: 2,
+  borderLeftWidth: 2,
+  borderRightWidth: 2,   // 陰影壓扁
+  borderBottomWidth: 2,  
+  borderColor: COLORS.line,
+},
 });
