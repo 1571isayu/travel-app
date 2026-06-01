@@ -87,7 +87,7 @@ export default function MapScreen() {
                 const diffDays =
                   Math.ceil(
                     Math.abs(end.getTime() - start.getTime()) /
-                      (1000 * 60 * 60 * 24),
+                    (1000 * 60 * 60 * 24),
                   ) + 1;
                 setTotalDays(diffDays);
               }
@@ -202,8 +202,24 @@ export default function MapScreen() {
             {`${formatShortDate(adventureDates.start)}~${formatShortDate(adventureDates.end)}`}
           </Text>
         </View>
-
-        <View style={{ width: 28 }} />
+        <TouchableOpacity
+          onPress={() => {
+            if (id) {
+              router.push({
+                pathname: "/adventure",
+                params: { id, name },
+              });
+            } else {
+              Alert.alert("提示", "找不到行程 ID，無法開啟地圖");
+            }
+          }}
+        >
+          <Image
+            source={require("../../img/icon_calendar.png")}
+            style={{ height: 20, width: 20 }}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.daySelectorContainer}>
