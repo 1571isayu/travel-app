@@ -6,6 +6,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +16,7 @@ import {
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 
-// 🌟 1. 引入 Firebase 與即時監聽工具
+// 🌟 引入 Firebase 與即時監聽工具
 import {
   collection,
   doc,
@@ -22,7 +24,7 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { db } from "../../firebaseConfig"; // 如果報錯，請確認相對路徑是 "../firebaseConfig" 或 "../../firebaseConfig"
+import { db } from "../../firebaseConfig";
 
 type TimelineItemType = {
   id: string;
@@ -51,13 +53,29 @@ export default function MapScreen() {
   const [coordinates, setCoordinates] = useState<CoordinateType[]>([]);
   const [geocoding, setGeocoding] = useState(false);
 
+  // 導航到 Google Maps 的輔助函數
+  const openInGoogleMaps = (lat: number, lng: number, title: string) => {
+    const url = Platform.select({
+      ios: `comgooglemaps://?q=${lat},${lng}&center=${lat},${lng}`,
+      android: `google.navigation:q=${lat},${lng}`,
+    });
+
+    Linking.canOpenURL(url!).then((supported) => {
+      if (supported) {
+        Linking.openURL(url!);
+      } else {
+        const webUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+        Linking.openURL(webUrl);
+      }
+    });
+  };
+
   const formatShortDate = (dateStr: string) => {
     if (!dateStr) return "";
     const parts = dateStr.split("-");
     return parts.length === 3 ? `${parts[1]}.${parts[2]}` : dateStr;
   };
 
-  // 🌟 2. 替換為 Firebase 即時監聽
   useEffect(() => {
     if (!id) return;
 
@@ -65,7 +83,6 @@ export default function MapScreen() {
     let unsubItinerary: () => void;
 
     const requestPermissionAndListen = async () => {
-      // 要求定位權限
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         Alert.alert("權限不足", "請允許存取位置以解析行程地點");
@@ -74,7 +91,6 @@ export default function MapScreen() {
       }
 
       try {
-        // A. 監聽房間基本資料（取得天數與日期）
         unsubRoom = onSnapshot(
           doc(db, "adventures", id as string),
           (docSnap) => {
@@ -87,7 +103,7 @@ export default function MapScreen() {
                 const diffDays =
                   Math.ceil(
                     Math.abs(end.getTime() - start.getTime()) /
-                    (1000 * 60 * 60 * 24),
+                      (1000 * 60 * 60 * 24),
                   ) + 1;
                 setTotalDays(diffDays);
               }
@@ -95,7 +111,6 @@ export default function MapScreen() {
           },
         );
 
-        // B. 監聽行程資料（即時抓取所有地標）
         const itineraryRef = collection(
           db,
           "adventures",
@@ -123,14 +138,12 @@ export default function MapScreen() {
 
     requestPermissionAndListen();
 
-    // 離開地圖時中斷連線，節省流量
     return () => {
       if (unsubRoom) unsubRoom();
       if (unsubItinerary) unsubItinerary();
     };
   }, [id]);
 
-  // 3. 當天數或資料改變時，轉換地址為座標 (維持不變)
   useEffect(() => {
     const geocodeLocations = async () => {
       setGeocoding(true);
@@ -174,7 +187,7 @@ export default function MapScreen() {
     if (items.length > 0) {
       geocodeLocations();
     } else if (items.length === 0 && !loading) {
-      setCoordinates([]); // 當天沒有行程時清空座標
+      setCoordinates([]);
     }
   }, [currentDay, items, loading]);
 
@@ -188,7 +201,6 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header 區塊 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <ChevronLeft color="#4A342E" size={28} />
@@ -286,6 +298,7 @@ export default function MapScreen() {
               }}
               title={coord.title}
               description={coord.time}
+              onPress={() => openInGoogleMaps(coord.latitude, coord.longitude, coord.title)}
             >
               <View style={styles.customMarker}>
                 <Text style={styles.markerText}>{index + 1}</Text>
