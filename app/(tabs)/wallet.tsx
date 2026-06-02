@@ -5,19 +5,24 @@ import {
   addDoc,
   collection,
   doc,
+  deleteDoc as fsDeleteDoc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Image,
   KeyboardAvoidingView,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   ScrollView,
   StyleSheet,
@@ -28,6 +33,8 @@ import {
 } from "react-native";
 import { db } from "../../firebaseConfig";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Member = { id: string; name: string; avatar?: string };
@@ -37,9 +44,9 @@ type Split = { memberId: string; amount: number };
 type Transaction = {
   id: string;
   currency: string;
-  amount: number; // 原幣金額
-  twd: number; // 換算後台幣
-  datetime: string; // "YYYY.MM.DD HH:MM"
+  amount: number;
+  twd: number;
+  datetime: string;
   item: string;
   payerId: string;
   splits: Split[];
@@ -53,7 +60,6 @@ type DebtEntry = { fromId: string; toId: string; amount: number };
 
 const CURRENCIES = ["TWD", "JPY", "USD", "EUR", "KRW", "HKD", "THB"];
 
-/** 備用匯率（1 單位外幣 → 台幣），抓取即時匯率失敗時使用 */
 const FALLBACK_RATES: Record<string, number> = {
   TWD: 1,
   JPY: 0.215,
@@ -66,18 +72,8 @@ const FALLBACK_RATES: Record<string, number> = {
 
 const WEEKDAYS_ZH = ["日", "一", "二", "三", "四", "五", "六"];
 const MONTHS_ZH = [
-  "一月",
-  "二月",
-  "三月",
-  "四月",
-  "五月",
-  "六月",
-  "七月",
-  "八月",
-  "九月",
-  "十月",
-  "十一月",
-  "十二月",
+  "一月", "二月", "三月", "四月", "五月", "六月",
+  "七月", "八月", "九月", "十月", "十一月", "十二月"
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -98,9 +94,6 @@ const fmtDate = (d: Date): string => {
   return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`;
 };
 
-/**
- * 將所有交易算出兩兩之間的淨欠款（已化簡）。
- */
 const calcDebts = (txs: Transaction[], members: Member[]): DebtEntry[] => {
   const net: Record<string, Record<string, number>> = {};
   members.forEach((m) => {
@@ -164,119 +157,68 @@ function Avatar({ member, size = 44 }: { member: Member; size?: number }) {
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function WalletScreen() {
   const { id: paramId } = useLocalSearchParams();
+  const horizontalScrollRef = useRef<ScrollView>(null);
 
   const [activeTab, setActiveTab] = useState<"debt" | "details">("details");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [liveRates, setLiveRates] =
-    useState<Record<string, number>>(FALLBACK_RATES);
-
-  // 🌟 新增一個全域變數狀態，確保 Modal 也能順利拿到正解的冒險 ID
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [liveRates, setLiveRates] = useState<Record<string, number>>(FALLBACK_RATES);
   const [adventureId, setAdventureId] = useState<string>("");
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
+  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
+
+
 
   useEffect(() => {
-    let membersUnsub: () => void = () => {};
-    let txUnsub: () => void = () => {};
+    let membersUnsub: () => void = () => { };
+    let txUnsub: () => void = () => { };
 
-    // 封裝核心的 Firebase 監聽邏輯
     const startListening = (resolvedId: string) => {
-      console.log("🚀 Wallet 開始載入冒險 ID:", resolvedId);
-      setAdventureId(resolvedId); // 🌟 順便同步到狀態中，供 Modal 使用
-
-      // 1. 監聽成員資料（從 adventure 文件的 members 陣列欄位讀取）
-      membersUnsub = onSnapshot(
-        doc(db, "adventures", resolvedId),
-        async (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            const membersArray: any[] = data.members || [];
-
-            if (membersArray.length > 0) {
-              // 將 home.tsx 儲存的 userProfile 格式轉換為 Member 格式
-              const firebaseMembers: Member[] = membersArray.map((m) => ({
-                id: m.uid || m.id || "unknown",
-                name: m.name || m.displayName || "?",
-                avatar: m.avatar || m.photoURL || undefined,
-              }));
-              setMembers(firebaseMembers);
-              return;
-            }
+      setAdventureId(resolvedId);
+      membersUnsub = onSnapshot(doc(db, "adventures", resolvedId), async (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const membersArray: any[] = data.members || [];
+          if (membersArray.length > 0) {
+            setMembers(membersArray.map((m) => ({ id: m.uid || m.id, name: m.name || m.displayName, avatar: m.avatar || m.photoURL })));
+            return;
           }
-
-          // Fallback：Firebase 沒有成員資料時，用本地的使用者資料
-          try {
-            const stored = await AsyncStorage.getItem("@user_profile");
-            if (stored) {
-              const p = JSON.parse(stored);
-              setMembers([
-                {
-                  id: p.uid || "me",
-                  name: p.displayName || p.name || "我",
-                  avatar: p.photoURL || p.avatar,
-                },
-              ]);
-            }
-          } catch (err) {
-            console.error("讀取 AsyncStorage 失敗:", err);
-          }
-        },
-        (error) => {
-          console.error("❌ Wallet 成員監聽失敗:", error);
-        },
-      );
-
-      // 2. 監聽交易明細資料
-      const txQuery = query(
-        collection(db, "adventures", resolvedId, "transactions"),
-        orderBy("createdAt", "desc"),
-      );
-
-      txUnsub = onSnapshot(
-        txQuery,
-        (snap) => {
-          const list: Transaction[] = [];
-          snap.forEach((d) =>
-            list.push({ id: d.id, ...(d.data() as Omit<Transaction, "id">) }),
-          );
-          setTransactions(list);
-          setLoading(false);
-          console.log(`✅ Wallet 交易載入成功，共 ${list.length} 筆`);
-        },
-        (error) => {
-          console.error("❌ Wallet 交易監聽失敗:", error);
-          setLoading(false);
-        },
-      );
-    };
-
-    // 核心判斷流：Params 優先 -> 其次讀取 AsyncStorage 快取
-    if (paramId) {
-      startListening(paramId as string);
-    } else {
-      AsyncStorage.getItem("@current_adventure_id").then((localId) => {
-        if (localId) {
-          startListening(localId);
-        } else {
-          console.log(
-            "❌ 錯誤：找不到冒險 ID (useLocalSearchParams 與 本地快取 皆為空)",
-          );
-          setLoading(false);
         }
       });
-    }
 
-    // 解除監聽
-    return () => {
-      if (membersUnsub) membersUnsub();
-      if (txUnsub) txUnsub();
+      const txQuery = query(collection(db, "adventures", resolvedId, "transactions"), orderBy("createdAt", "desc"));
+      txUnsub = onSnapshot(txQuery, (snap) => {
+        const list: Transaction[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...(d.data() as Omit<Transaction, "id">) }));
+        setTransactions(list);
+        setLoading(false);
+      });
     };
-  }, [paramId]);
 
-  // ── 即時匯率抓取 ──────────────────────────────────────────────────────────
+    if (paramId) startListening(paramId as string);
+    else AsyncStorage.getItem("@current_adventure_id").then((id) => id ? startListening(id) : setLoading(false));
+
+    return () => { membersUnsub(); txUnsub(); };
+  }, [paramId]);
+  // --- 滑動切換控制 ---
+  const handleTabPress = (tab: "debt" | "details") => {
+    setActiveTab(tab);
+    horizontalScrollRef.current?.scrollTo({
+      x: tab === "debt" ? 0 : SCREEN_WIDTH,
+      animated: true,
+    });
+  };
+
+  const handleScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    setActiveTab(offsetX < SCREEN_WIDTH / 2 ? "debt" : "details");
+  };
   useEffect(() => {
     const fetchRates = async () => {
       try {
@@ -287,12 +229,10 @@ export default function WalletScreen() {
           const updated: Record<string, number> = { TWD: 1 };
           CURRENCIES.forEach((c) => {
             if (c !== "TWD" && r[c]) {
-              // open.er-api: rates.XXX = 1 TWD 換幾 XXX → 反算 1 XXX = ? TWD
               updated[c] = Math.round((1 / r[c]) * 10000) / 10000;
             }
           });
           setLiveRates(updated);
-          console.log("✅ 即時匯率更新成功:", updated);
         }
       } catch (err) {
         console.warn("⚠️ 即時匯率抓取失敗，使用備用匯率:", err);
@@ -306,13 +246,34 @@ export default function WalletScreen() {
 
   const debts = calcDebts(transactions, members);
 
-  if (loading) {
-    return (
-      <View style={mainStyles.loading}>
-        <ActivityIndicator size="large" color="#5E433B" />
-      </View>
-    );
-  }
+  // 長按事件處理
+  const handleLongPressTx = (tx: Transaction) => {
+    setDeletingTransaction(tx);
+    setIsDeleteModalVisible(true);
+  };
+
+  // 短點擊事件處理（編輯模式）
+  const handlePressTx = (tx: Transaction) => {
+    setEditingTransaction(tx);
+    setShowFormModal(true);
+  };
+
+  // 確定從資料庫丟棄記帳
+  const confirmDeleteTx = async () => {
+    if (!deletingTransaction || !adventureId) return;
+    try {
+      await fsDeleteDoc(doc(db, "adventures", adventureId, "transactions", deletingTransaction.id));
+    } catch (e) {
+      console.error("刪除失敗：", e);
+      Alert.alert("丟棄失敗", "請檢查網路連線後再試");
+    } finally {
+      setIsDeleteModalVisible(false);
+      setDeletingTransaction(null);
+    }
+  };
+
+
+  if (loading) return <View style={mainStyles.loading}><ActivityIndicator size="large" color="#5E433B" /></View>;
 
   return (
     <View style={mainStyles.container}>
@@ -322,15 +283,10 @@ export default function WalletScreen() {
           <TouchableOpacity
             key={tab}
             style={[mainStyles.tab, activeTab === tab && mainStyles.tabActive]}
-            onPress={() => setActiveTab(tab)}
+            onPress={() => handleTabPress(tab)}
           >
-            <Text
-              style={[
-                mainStyles.tabText,
-                activeTab === tab && mainStyles.tabTextActive,
-              ]}
-            >
-              {tab === "debt" ? "DEBT" : "DETAILS"}
+            <Text style={[mainStyles.tabText, activeTab === tab && mainStyles.tabTextActive]}>
+              {tab.toUpperCase()}
             </Text>
           </TouchableOpacity>
         ))}
@@ -340,118 +296,197 @@ export default function WalletScreen() {
         source={require("../../img/ad_line.png")}
         style={mainStyles.separator}
       />
-
-      {/* ── DETAILS Tab ── */}
-      {activeTab === "details" && (
-        <ScrollView
-          style={mainStyles.scroll}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={mainStyles.scrollContent}
-        >
-          {transactions.length === 0 ? (
-            <View style={mainStyles.empty}>
-              <Text style={mainStyles.emptyTitle}>還沒有任何記帳紀錄</Text>
-              <Text style={mainStyles.emptySub}>點右下角 + 開始新增！</Text>
-            </View>
-          ) : (
-            transactions.map((tx) => {
-              const payer = getMember(tx.payerId);
-              const displayAmt =
-                tx.currency !== "TWD"
-                  ? `$${tx.currency}${tx.amount}`
-                  : `$NT${tx.twd}`;
-              return (
-                <View key={tx.id} style={mainStyles.txCard}>
-                  {/* 左：付款人頭像 + 名字 */}
-                  <View style={mainStyles.txLeft}>
-                    <Avatar member={payer} size={46} />
-                    <Text style={mainStyles.txPayerName} numberOfLines={1}>
-                      {payer.name}
-                    </Text>
+      <ScrollView
+        ref={horizontalScrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScrollEnd}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ width: SCREEN_WIDTH * 2 }}
+      >
+        {/* ── DEBT Tab ── */}
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <ScrollView contentContainerStyle={mainStyles.scrollContent}>
+            {activeTab === "debt" && (
+              <ScrollView
+                style={mainStyles.scroll}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={mainStyles.scrollContent}
+              >
+                {debts.length === 0 ? (
+                  <View style={mainStyles.empty}>
+                    <Text style={mainStyles.emptyTitle}>🎉 目前沒有待結清的欠款</Text>
                   </View>
+                ) : (
+                  debts.map((debt, i) => {
+                    const from = getMember(debt.fromId);
+                    const to = getMember(debt.toId);
+                    return (
+                      <View key={i} style={mainStyles.debtCard}>
+                        <View style={mainStyles.debtPerson}>
+                          <Avatar member={from} size={54} />
+                          <Text style={mainStyles.debtName} numberOfLines={1}>
+                            {from.name}
+                          </Text>
+                        </View>
 
-                  {/* 中：品項 + 日期 */}
-                  <View style={mainStyles.txMiddle}>
-                    <Text style={mainStyles.txItem} numberOfLines={1}>
-                      {tx.item || "未命名"}
-                    </Text>
-                    <Text style={mainStyles.txDate}>{tx.datetime}</Text>
+                        <View style={mainStyles.debtMiddle}>
+                          <Text style={mainStyles.debtAmount}>
+                            ${`NT${debt.amount}`}
+                          </Text>
+                          <ChevronRight color="#5E433B" size={20} />
+                        </View>
+
+                        <View style={mainStyles.debtPerson}>
+                          <Avatar member={to} size={54} />
+                          <Text style={mainStyles.debtName} numberOfLines={1}>
+                            {to.name}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
+            )}
+          </ScrollView>
+        </View>
+        {/* ── DETAILS Tab ── */}
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <ScrollView contentContainerStyle={mainStyles.scrollContent}>
+            {activeTab === "details" && (
+              <ScrollView
+                style={mainStyles.scroll}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={mainStyles.scrollContent}
+              >
+                {transactions.length === 0 ? (
+                  <View style={mainStyles.empty}>
+                    <Text style={mainStyles.emptyTitle}>還沒有任何記帳紀錄</Text>
+                    <Text style={mainStyles.emptySub}>點右下角 + 開始新增！</Text>
                   </View>
+                ) : (
+                  transactions.map((tx) => {
+                    const payer = getMember(tx.payerId);
+                    const displayAmt =
+                      tx.currency !== "TWD"
+                        ? `$${tx.currency}${tx.amount}`
+                        : `$NT${tx.twd}`;
+                    return (
+                      /* 將原包覆外層改為具備手勢辨識的按鈕 */
+                      <TouchableOpacity
+                        key={tx.id}
+                        style={mainStyles.txCard}
+                        activeOpacity={0.85}
+                        onPress={() => handlePressTx(tx)}
+                        onLongPress={() => handleLongPressTx(tx)}
+                        delayLongPress={600}
+                      >
+                        {/* 左：付款人頭像 + 名字 */}
+                        <View style={mainStyles.txLeft}>
+                          <Avatar member={payer} size={46} />
+                          <Text style={mainStyles.txPayerName} numberOfLines={1}>
+                            {payer.name}
+                          </Text>
+                        </View>
 
-                  {/* 右：金額 + 硬幣 */}
-                  <View style={mainStyles.txRight}>
-                    <Text style={mainStyles.txAmount}>{displayAmt}</Text>
-                    <Text style={mainStyles.txCoin}>🪙</Text>
-                  </View>
-                </View>
-              );
-            })
-          )}
-        </ScrollView>
-      )}
+                        {/* 中：品項 + 日期 */}
+                        <View style={mainStyles.txMiddle}>
+                          <Text style={mainStyles.txItem} numberOfLines={1}>
+                            {tx.item || "未命名"}
+                          </Text>
+                          <Text style={mainStyles.txDate}>{tx.datetime}</Text>
+                        </View>
 
-      {/* ── DEBT Tab ── */}
-      {activeTab === "debt" && (
-        <ScrollView
-          style={mainStyles.scroll}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={mainStyles.scrollContent}
-        >
-          {debts.length === 0 ? (
-            <View style={mainStyles.empty}>
-              <Text style={mainStyles.emptyTitle}>🎉 目前沒有待結清的欠款</Text>
-            </View>
-          ) : (
-            debts.map((debt, i) => {
-              const from = getMember(debt.fromId);
-              const to = getMember(debt.toId);
-              return (
-                <View key={i} style={mainStyles.debtCard}>
-                  {/* 欠款人 */}
-                  <View style={mainStyles.debtPerson}>
-                    <Avatar member={from} size={54} />
-                    <Text style={mainStyles.debtName} numberOfLines={1}>
-                      {from.name}
-                    </Text>
-                  </View>
+                        {/* 右：金額 + 硬幣 */}
+                        <View style={mainStyles.txRight}>
+                          <Text style={mainStyles.txAmount}>{displayAmt}</Text>
+                          <Text style={mainStyles.txCoin}>🪙</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </ScrollView>
+            )}
+          </ScrollView>
+        </View>
 
-                  {/* 金額 + 箭頭 */}
-                  <View style={mainStyles.debtMiddle}>
-                    <Text style={mainStyles.debtAmount}>
-                      ${`NT${debt.amount}`}
-                    </Text>
-                    <ChevronRight color="#5E433B" size={20} />
-                  </View>
-
-                  {/* 被欠人 */}
-                  <View style={mainStyles.debtPerson}>
-                    <Avatar member={to} size={54} />
-                    <Text style={mainStyles.debtName} numberOfLines={1}>
-                      {to.name}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })
-          )}
-        </ScrollView>
-      )}
-
+      </ScrollView>
       {/* ── FAB 新增按鈕 ── */}
-      <TouchableOpacity style={mainStyles.fab} onPress={() => setShowAdd(true)}>
+      <TouchableOpacity
+        style={mainStyles.fab}
+        onPress={() => {
+          setEditingTransaction(null); // 明確清除編輯目標狀態，切換至純新增
+          setShowFormModal(true);
+        }}
+      >
         <Plus color="#FFF" size={28} />
       </TouchableOpacity>
 
-      {/* ── Add Transaction Modal ── */}
-      {showAdd && (
-        <AddTransactionModal
-          visible={showAdd}
+      {/* ── 表單新增 / 編輯彈出視窗 ── */}
+      {showFormModal && (
+        <TransactionFormModal
+          visible={showFormModal}
           members={members}
           adventureId={adventureId}
           rates={liveRates}
-          onClose={() => setShowAdd(false)}
+          editTarget={editingTransaction}
+          onClose={() => {
+            setShowFormModal(false);
+            setEditingTransaction(null);
+          }}
         />
       )}
+
+      {/* ── 🔴 客製化 Y2K 粗邊風格「記帳丟棄框」 ── */}
+      <Modal visible={isDeleteModalVisible} transparent animationType="fade">
+        <View style={mainStyles.alertOverlay}>
+          <View style={mainStyles.alertCardContainer}>
+            <View style={mainStyles.alertCardShadow} />
+            <View style={mainStyles.alertCard}>
+              <Text style={mainStyles.alertTitle}>刪除記帳紀錄</Text>
+
+              <Image
+                source={require("../../img/ad_line.png")}
+                style={addStyles.modalSeparator}
+              />
+
+              <Text style={mainStyles.alertMessage}>
+                確定要把「{deletingTransaction?.item || "未命名"}」的這筆開銷從帳本中撕掉丟棄嗎？
+              </Text>
+
+              <View style={addStyles.modalBtnRow}>
+                <View style={addStyles.modalBtnContainer}>
+                  <View style={[addStyles.modalBtnShadow, { backgroundColor: "#8A9A84" }]} />
+                  <TouchableOpacity
+                    style={[addStyles.modalBtn, { backgroundColor: "#C2D1BC" }]}
+                    onPress={() => {
+                      setIsDeleteModalVisible(false);
+                      setDeletingTransaction(null);
+                    }}
+                  >
+                    <Text style={addStyles.modalBtnText}>取消</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={addStyles.modalBtnContainer}>
+                  <View style={[addStyles.modalBtnShadow, { backgroundColor: "#9E4714" }]} />
+                  <TouchableOpacity
+                    style={[addStyles.modalBtn, { backgroundColor: "#EC7424" }]}
+                    onPress={confirmDeleteTx}
+                  >
+                    <Text style={[addStyles.modalBtnText, { color: "#FFF" }]}>
+                      丟棄
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -613,8 +648,8 @@ type SplitType = "ratio" | "custom";
 
 type SplitConfig = {
   mode: SplitType;
-  ratios: Record<string, string>; // ratio 模式：每人比例
-  customAmts: Record<string, string>; // custom 模式：每人金額
+  ratios: Record<string, string>;
+  customAmts: Record<string, string>;
 };
 
 function buildEqualCustomAmts(
@@ -637,7 +672,6 @@ function buildEqualCustomAmts(
   return result;
 }
 
-/** 根據 SplitConfig 計算最終的 splits（台幣），回傳 null 表示設定有誤 */
 function computeSplits(
   config: SplitConfig,
   members: Member[],
@@ -657,7 +691,6 @@ function computeSplits(
         amount: Math.round((p.r / total) * twdTotal),
       }));
   }
-  // custom
   const splits = members
     .map((m) => ({
       memberId: m.id,
@@ -667,7 +700,6 @@ function computeSplits(
   return splits.length > 0 ? splits : null;
 }
 
-/** 分帳設定的摘要文字，顯示在主表單 */
 function splitSummary(config: SplitConfig, _members: Member[]): string {
   if (config.mode === "ratio") return "比例分配";
   return "金額分配";
@@ -687,14 +719,9 @@ function SplitScreenView({
   onClose: () => void;
 }) {
   const [mode, setMode] = useState<SplitType>(initialConfig.mode);
-  const [ratios, setRatios] = useState<Record<string, string>>(
-    initialConfig.ratios,
-  );
-  const [customAmts, setCustomAmts] = useState<Record<string, string>>(
-    initialConfig.customAmts,
-  );
+  const [ratios, setRatios] = useState<Record<string, string>>(initialConfig.ratios);
+  const [customAmts, setCustomAmts] = useState<Record<string, string>>(initialConfig.customAmts);
 
-  // 每次打開同步初始值
   useEffect(() => {
     setMode(initialConfig.mode);
     setRatios({ ...initialConfig.ratios });
@@ -724,7 +751,6 @@ function SplitScreenView({
     });
   };
 
-  // ── Ratio 計算 ──
   const ratioTotal = members.reduce(
     (s, m) => s + (parseFloat(ratios[m.id] || "0") || 0),
     0,
@@ -734,7 +760,6 @@ function SplitScreenView({
     return ratioTotal > 0 ? Math.round((r / ratioTotal) * twdTotal) : 0;
   };
 
-  // ── Custom 計算 ──
   const customSum = members.reduce(
     (s, m) => s + (parseFloat(customAmts[m.id] || "0") || 0),
     0,
@@ -760,7 +785,6 @@ function SplitScreenView({
 
   return (
     <View style={splitStyles.container}>
-      {/* Header */}
       <View style={splitStyles.header}>
         <TouchableOpacity onPress={onClose} style={splitStyles.backBtn}>
           <Text style={splitStyles.backText}>{"<"}</Text>
@@ -769,13 +793,11 @@ function SplitScreenView({
         <View style={{ width: 36 }} />
       </View>
 
-      {/* 總金額提示 */}
       <View style={splitStyles.totalBanner}>
         <Text style={splitStyles.totalLabel}>總金額</Text>
         <Text style={splitStyles.totalAmt}>NT$ {twdTotal}</Text>
       </View>
 
-      {/* Mode Tabs */}
       <View style={splitStyles.tabRow}>
         {TABS.map((t) => (
           <TouchableOpacity
@@ -796,13 +818,11 @@ function SplitScreenView({
         ))}
       </View>
 
-      {/* Member List */}
       <ScrollView
         style={splitStyles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── 比例分 ── */}
         {mode === "ratio" && (
           <>
             <Text style={splitStyles.hint}>
@@ -849,7 +869,6 @@ function SplitScreenView({
           </>
         )}
 
-        {/* ── 金額分 ── */}
         {mode === "custom" && (
           <>
             <Text style={splitStyles.hint}>
@@ -874,7 +893,6 @@ function SplitScreenView({
                 </View>
               </View>
             ))}
-            {/* 剩餘金額狀態列 */}
             <View
               style={[
                 splitStyles.remainBar,
@@ -900,7 +918,6 @@ function SplitScreenView({
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* 確認按鈕 */}
       <TouchableOpacity style={splitStyles.confirmBtn} onPress={handleConfirm}>
         <Text style={splitStyles.confirmText}>確認分帳</Text>
       </TouchableOpacity>
@@ -908,19 +925,21 @@ function SplitScreenView({
   );
 }
 
-// ─── Add Transaction Modal ────────────────────────────────────────────────────
+// ─── Transaction Form Modal (升級融合新增與編輯功能) ──────────────────────────
 
-function AddTransactionModal({
+function TransactionFormModal({
   visible,
   members,
   adventureId,
   rates,
+  editTarget,
   onClose,
 }: {
   visible: boolean;
   members: Member[];
   adventureId: string;
   rates: Record<string, number>;
+  editTarget: Transaction | null; // 判斷是編輯還是新增
   onClose: () => void;
 }) {
   const [currency, setCurrency] = useState("TWD");
@@ -938,52 +957,43 @@ function AddTransactionModal({
   const [saving, setSaving] = useState(false);
   const twdTotal = toTWD(parseFloat(amountStr) || 0, currency, rates);
 
-  // 分帳設定（預設：比例分 1:1、金額分平均分）
   const [splitConfig, setSplitConfig] = useState<SplitConfig>({
     mode: "ratio",
     ratios: Object.fromEntries(members.map((m) => [m.id, "1"])),
-    customAmts: buildEqualCustomAmts(members, twdTotal),
+    customAmts: buildEqualCustomAmts(members, 0),
   });
 
-  // 成員更新時同步預設分帳設定
+  // 如果有傳入 editTarget 則進行表單初始化賦值
   useEffect(() => {
-    setPayerId(members[0]?.id ?? "");
-    setSplitConfig({
-      mode: "ratio",
-      ratios: Object.fromEntries(members.map((m) => [m.id, "1"])),
-      customAmts: buildEqualCustomAmts(members, 0),
-    });
-  }, [members]);
+    if (editTarget) {
+      setCurrency(editTarget.currency);
+      setAmountStr(String(editTarget.amount));
+      setItem(editTarget.item);
+      setPayerId(editTarget.payerId);
+      setImageUri(editTarget.imageUri ?? null);
+      setNote(editTarget.note ?? "");
+      setDatetime(editTarget.datetime);
 
-  const reset = () => {
-    const now = new Date();
-    setCurrency("TWD");
-    setAmountStr("");
-    setSelectedDate(now);
-    setDatetime(fmtDatetime(now));
-    setItem("");
-    setPayerId(members[0]?.id ?? "");
-    setImageUri(null);
-    setNote("");
-    setSplitConfig({
-      mode: "ratio",
-      ratios: Object.fromEntries(members.map((m) => [m.id, "1"])),
-      customAmts: buildEqualCustomAmts(members, 0),
-    });
-  };
-
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
-  const pickImage = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-    if (!res.canceled) setImageUri(res.assets[0].uri);
-  };
+      // 反推還原分帳資訊
+      const targetAmts: Record<string, string> = {};
+      editTarget.splits.forEach(s => {
+        targetAmts[s.memberId] = String(s.amount);
+      });
+      setSplitConfig({
+        mode: "custom", // 編輯舊帳一律先轉金額自訂方便對齊
+        ratios: Object.fromEntries(members.map((m) => [m.id, "1"])),
+        customAmts: { ...buildEqualCustomAmts(members, editTarget.twd), ...targetAmts }
+      });
+    } else {
+      // 純新增模式
+      setPayerId(members[0]?.id ?? "");
+      setSplitConfig({
+        mode: "ratio",
+        ratios: Object.fromEntries(members.map((m) => [m.id, "1"])),
+        customAmts: buildEqualCustomAmts(members, 0),
+      });
+    }
+  }, [editTarget, members]);
 
   const handleSave = async () => {
     const rawAmt = parseFloat(amountStr);
@@ -1008,7 +1018,7 @@ function AddTransactionModal({
 
     setSaving(true);
     try {
-      await addDoc(collection(db, "adventures", adventureId, "transactions"), {
+      const payload = {
         currency,
         amount: rawAmt,
         twd: twdTotal,
@@ -1018,15 +1028,33 @@ function AddTransactionModal({
         splits,
         imageUri: imageUri ?? null,
         note: note.trim(),
-        createdAt: serverTimestamp(),
-      });
-      handleClose();
+      };
+
+      if (editTarget) {
+        // 🚀 執行編輯更新更新
+        await updateDoc(doc(db, "adventures", adventureId, "transactions", editTarget.id), payload);
+      } else {
+        // ➕ 新增新記帳
+        await addDoc(collection(db, "adventures", adventureId, "transactions"), {
+          ...payload,
+          createdAt: serverTimestamp(),
+        });
+      }
+      onClose();
     } catch (e) {
-      Alert.alert("儲存失敗", "請稍後再試");
+      Alert.alert("儲存失敗", "請檢查網路連試試");
       console.error(e);
     } finally {
       setSaving(false);
     }
+  };
+
+  const pickImage = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (!res.canceled) setImageUri(res.assets[0].uri);
   };
 
   const payer = members.find((m) => m.id === payerId);
@@ -1035,7 +1063,6 @@ function AddTransactionModal({
     <>
       <Modal visible={visible} animationType="slide">
         {showSplitScreen ? (
-          /* ── 替誰付錢畫面（在同一 Modal 內切換，避免 iOS 巢狀 Modal 問題） ── */
           <SplitScreenView
             members={members}
             twdTotal={twdTotal}
@@ -1048,9 +1075,8 @@ function AddTransactionModal({
           />
         ) : (
           <View style={addStyles.container}>
-            {/* ── Header：返回 + 貨幣 + 金額 ── */}
             <View style={addStyles.header}>
-              <TouchableOpacity onPress={handleClose} style={addStyles.backBtn}>
+              <TouchableOpacity onPress={onClose} style={addStyles.backBtn}>
                 <Text style={addStyles.backText}>{"<"}</Text>
               </TouchableOpacity>
               <View style={addStyles.amountRow}>
@@ -1086,7 +1112,6 @@ function AddTransactionModal({
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
-                {/* 時間 */}
                 <Text style={addStyles.label}>日期</Text>
                 <TouchableOpacity
                   style={addStyles.dropdown}
@@ -1096,7 +1121,6 @@ function AddTransactionModal({
                   <ChevronDown color="#5E433B" size={16} />
                 </TouchableOpacity>
 
-                {/* 品項 */}
                 <Text style={addStyles.label}>品項</Text>
                 <TextInput
                   style={addStyles.field}
@@ -1106,7 +1130,6 @@ function AddTransactionModal({
                   placeholderTextColor="#C8B8A2"
                 />
 
-                {/* 付款人 */}
                 <Text style={addStyles.label}>付款人</Text>
                 <TouchableOpacity
                   style={addStyles.dropdown}
@@ -1123,14 +1146,12 @@ function AddTransactionModal({
                   <ChevronDown color="#5E433B" size={16} />
                 </TouchableOpacity>
 
-                {/* 替誰付錢（點擊跳轉分帳畫面） */}
                 <Text style={addStyles.label}>替誰付錢</Text>
                 <TouchableOpacity
                   style={addStyles.splitEntryRow}
                   onPress={() => setShowSplitScreen(true)}
                 >
                   <View style={addStyles.splitEntryLeft}>
-                    {/* 成員頭像預覽 */}
                     <View style={addStyles.avatarStack}>
                       {members.slice(0, 4).map((m, i) => (
                         <View
@@ -1148,7 +1169,6 @@ function AddTransactionModal({
                   <ChevronRight color="#5E433B" size={18} />
                 </TouchableOpacity>
 
-                {/* 圖片 */}
                 <Text style={addStyles.label}>圖片</Text>
                 <TouchableOpacity
                   style={addStyles.imagePicker}
@@ -1163,7 +1183,6 @@ function AddTransactionModal({
                   ) : null}
                 </TouchableOpacity>
 
-                {/* 備註 */}
                 <Text style={addStyles.label}>備註</Text>
                 <TextInput
                   style={[
@@ -1172,10 +1191,11 @@ function AddTransactionModal({
                   ]}
                   value={note}
                   onChangeText={setNote}
+                  placeholder="補充備註..."
+                  placeholderTextColor="#C8B8A2"
                   multiline
                 />
 
-                {/* Save 按鈕 */}
                 <TouchableOpacity
                   style={addStyles.saveBtn}
                   onPress={handleSave}
@@ -1192,12 +1212,8 @@ function AddTransactionModal({
               </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* ── 貨幣選擇 Sheet ── */}
-            <Modal
-              visible={showCurrencyPicker}
-              transparent
-              animationType="slide"
-            >
+            {/* 貨幣彈出 Sheet */}
+            <Modal visible={showCurrencyPicker} transparent animationType="slide">
               <TouchableOpacity
                 style={sheetStyles.overlay}
                 onPress={() => setShowCurrencyPicker(false)}
@@ -1219,16 +1235,14 @@ function AddTransactionModal({
                           ? "基準貨幣"
                           : `1 ${c} ≈ NT$ ${rates[c] ?? FALLBACK_RATES[c]}`}
                       </Text>
-                      {c === currency && (
-                        <Text style={sheetStyles.optionCheck}>✓</Text>
-                      )}
+                      {c === currency && <Text style={sheetStyles.optionCheck}>✓</Text>}
                     </TouchableOpacity>
                   ))}
                 </View>
               </TouchableOpacity>
             </Modal>
 
-            {/* ── 付款人選擇 Sheet ── */}
+            {/* 付款人彈出 Sheet */}
             <Modal visible={showPayerPicker} transparent animationType="slide">
               <TouchableOpacity
                 style={sheetStyles.overlay}
@@ -1246,17 +1260,10 @@ function AddTransactionModal({
                       }}
                     >
                       <Avatar member={m} size={36} />
-                      <Text
-                        style={[
-                          sheetStyles.optionCurrency,
-                          m.id === payerId && sheetStyles.optionSelected,
-                        ]}
-                      >
+                      <Text style={[sheetStyles.optionCurrency, m.id === payerId && sheetStyles.optionSelected]}>
                         {m.name}
                       </Text>
-                      {m.id === payerId && (
-                        <Text style={sheetStyles.optionCheck}>✓</Text>
-                      )}
+                      {m.id === payerId && <Text style={sheetStyles.optionCheck}>✓</Text>}
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -1266,7 +1273,6 @@ function AddTransactionModal({
         )}
       </Modal>
 
-      {/* ── 日期選擇（獨立 Modal，可疊在 AddModal 上） ── */}
       <CalendarPickerModal
         visible={showCalendar}
         selectedDate={selectedDate}
@@ -1284,49 +1290,17 @@ function AddTransactionModal({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const mainStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FDFBF0",
-    paddingTop: 60,
-    position: "relative",
-  },
-  loading: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FDFBF0",
-  },
-
-  // Tab
-  tabRow: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    gap: 10,
-    marginBottom: 10,
-  },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 12,
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    backgroundColor: "#FDFBF0",
-  },
+  container: { flex: 1, backgroundColor: "#FDFBF0", paddingTop: 60, position: "relative" },
+  loading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FDFBF0" },
+  tabRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 10 },
+  tab: { flex: 1, alignItems: "center", paddingVertical: 12, borderWidth: 2, borderColor: "#5E433B", backgroundColor: "#FDFBF0" },
   tabActive: { backgroundColor: "#5E433B" },
   tabText: { fontSize: 14, fontWeight: "bold", color: "#5E433B" },
   tabTextActive: { color: "#FDFBF0" },
-
-  separator: {
-    width: "100%",
-    height: 10,
-    resizeMode: "contain",
-    marginBottom: 4,
-  },
-
+  separator: { width: "100%", height: 10, resizeMode: "contain", marginBottom: 4 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 100 },
 
-  // DETAILS card
   txCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -1337,13 +1311,7 @@ const mainStyles = StyleSheet.create({
     marginBottom: 12,
   },
   txLeft: { alignItems: "center", width: 58, marginRight: 10 },
-  txPayerName: {
-    fontSize: 10,
-    color: "#5E433B",
-    fontWeight: "bold",
-    marginTop: 4,
-    textAlign: "center",
-  },
+  txPayerName: { fontSize: 10, color: "#5E433B", fontWeight: "bold", marginTop: 4, textAlign: "center" },
   txMiddle: { flex: 1 },
   txItem: { fontSize: 14, fontWeight: "bold", color: "#5E433B" },
   txDate: { fontSize: 11, color: "#8D6E63", marginTop: 3 },
@@ -1351,42 +1319,16 @@ const mainStyles = StyleSheet.create({
   txAmount: { fontSize: 13, fontWeight: "bold", color: "#5E433B" },
   txCoin: { fontSize: 18 },
 
-  // DEBT card
-  debtCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFF",
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    padding: 16,
-    marginBottom: 12,
-  },
+  debtCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFF", borderWidth: 2, borderColor: "#5E433B", padding: 16, marginBottom: 12 },
   debtPerson: { alignItems: "center", width: 80 },
-  debtName: {
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#5E433B",
-    marginTop: 5,
-    textAlign: "center",
-  },
+  debtName: { fontSize: 11, fontWeight: "bold", color: "#5E433B", marginTop: 5, textAlign: "center" },
   debtMiddle: { flexDirection: "row", alignItems: "center", gap: 2 },
   debtAmount: { fontSize: 15, fontWeight: "bold", color: "#5E433B" },
-
-  // Avatar fallback
-  avatarFallback: {
-    backgroundColor: "#E8DDD5",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  avatarFallback: { backgroundColor: "#E8DDD5", justifyContent: "center", alignItems: "center" },
   avatarInitial: { fontWeight: "bold", color: "#5E433B" },
-
-  // Empty
   empty: { alignItems: "center", paddingTop: 80 },
   emptyTitle: { fontSize: 16, fontWeight: "bold", color: "#5E433B" },
   emptySub: { fontSize: 13, color: "#8D6E63", marginTop: 8 },
-
-  // FAB
   fab: {
     position: "absolute",
     right: 20,
@@ -1406,428 +1348,157 @@ const mainStyles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 0,
   },
+
+  // 🔴 追加：客製化設計款彈窗樣式
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  alertCardContainer: {
+    width: "82%",
+    position: "relative",
+  },
+  alertCardShadow: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    right: -6,
+    bottom: -6,
+    backgroundColor: "#5E433B",
+  },
+  alertCard: {
+    width: "100%",
+    backgroundColor: "#FDFBF0",
+    borderWidth: 2,
+    borderColor: "#5E433B",
+    padding: 20,
+    alignItems: "center",
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#5E433B",
+    marginBottom: 6,
+  },
+  alertMessage: {
+    fontSize: 14,
+    color: "#4A342E",
+    textAlign: "center",
+    lineHeight: 22,
+    marginTop: 6,
+    marginBottom: 20,
+  },
 });
 
 const addStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FDFBF0", paddingTop: 56 },
-
-  // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E8DDD5",
-  },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#E8DDD5" },
   backBtn: { marginRight: 16, paddingRight: 8 },
   backText: { fontSize: 22, color: "#5E433B", fontWeight: "bold" },
   amountRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
-  currencyBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    gap: 4,
-  },
+  currencyBox: { flexDirection: "row", alignItems: "center", borderWidth: 2, borderColor: "#5E433B", paddingHorizontal: 10, paddingVertical: 7, gap: 4 },
   currencyText: { fontSize: 13, fontWeight: "bold", color: "#5E433B" },
   dollarSign: { fontSize: 24, fontWeight: "bold", color: "#5E433B" },
   amountInput: { flex: 1, fontSize: 32, fontWeight: "bold", color: "#5E433B" },
-  convertedHint: {
-    fontSize: 12,
-    color: "#8D6E63",
-    alignSelf: "flex-end",
-    marginBottom: 4,
-  },
-
+  convertedHint: { fontSize: 12, color: "#8D6E63", alignSelf: "flex-end", marginBottom: 4 },
   scroll: { flex: 1, paddingHorizontal: 20 },
-
-  label: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#5E433B",
-    marginTop: 18,
-    marginBottom: 7,
-  },
-  field: {
-    backgroundColor: "#FFF",
-    borderWidth: 1.5,
-    borderColor: "#C8B8A2",
-    padding: 12,
-    fontSize: 14,
-    color: "#5E433B",
-  },
+  label: { fontSize: 13, fontWeight: "bold", color: "#5E433B", marginTop: 18, marginBottom: 7 },
+  field: { backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#C8B8A2", padding: 12, fontSize: 14, color: "#5E433B" },
   placeholder: { color: "#C8B8A2" },
-
-  dropdown: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFF",
-    borderWidth: 1.5,
-    borderColor: "#C8B8A2",
-    padding: 12,
-  },
+  dropdown: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#C8B8A2", padding: 12 },
   dropdownText: { fontSize: 14, color: "#5E433B" },
-
-  // Split entry row (點擊進入分帳畫面)
-  splitEntryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFF",
-    borderWidth: 1.5,
-    borderColor: "#C8B8A2",
-    padding: 12,
-    minHeight: 56,
-  },
-  splitEntryLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-  },
-  avatarStack: {
-    width: 22 * 3 + 28, // enough for 4 avatars
-    height: 28,
-    position: "relative",
-  },
-  avatarStackItem: {
-    position: "absolute",
-    top: 0,
-  },
-  splitEntrySummary: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#5E433B",
-    marginLeft: 8,
-  },
-
-  // Image
-  imagePicker: {
-    width: "100%",
-    height: 100,
-    backgroundColor: "#FFF",
-    borderWidth: 1.5,
-    borderColor: "#C8B8A2",
-    overflow: "hidden",
-  },
+  splitEntryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#C8B8A2", padding: 12, minHeight: 56 },
+  splitEntryLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  avatarStack: { width: 22 * 3 + 28, height: 28, position: "relative" },
+  avatarStackItem: { position: "absolute", top: 0 },
+  splitEntrySummary: { fontSize: 14, fontWeight: "bold", color: "#5E433B", marginLeft: 8 },
+  imagePicker: { width: "100%", height: 100, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#C8B8A2", overflow: "hidden" },
   imagePreview: { width: "100%", height: "100%" },
-
-  // Save
-  saveBtn: {
-    backgroundColor: "#EC7424",
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    padding: 16,
-    alignItems: "center",
-    marginTop: 24,
-  },
+  saveBtn: { backgroundColor: "#EC7424", borderWidth: 2, borderColor: "#5E433B", padding: 16, alignItems: "center", marginTop: 24 },
   saveBtnText: { color: "#FFF", fontWeight: "bold", fontSize: 16 },
+  modalSeparator: { width: "100%", height: 8, resizeMode: "contain", marginBottom: 12 },
+
+  // 🔴 像素厚重雙層按鈕結構樣式
+  modalBtnRow: { flexDirection: "row", gap: 14, marginTop: 4 },
+  modalBtnContainer: { flex: 1, position: "relative", height: 45 },
+  modalBtnShadow: { position: "absolute", top: 4, left: 4, right: -4, bottom: -4 },
+  modalBtn: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderWidth: 2, borderColor: "#5E433B", alignItems: "center", justifyContent: "center" },
+  modalBtnText: { fontWeight: "bold", fontSize: 14 },
 });
 
 const splitStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FDFBF0", paddingTop: 56 },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E8DDD5",
-  },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#E8DDD5" },
   backBtn: { paddingRight: 8 },
   backText: { fontSize: 22, color: "#5E433B", fontWeight: "bold" },
   title: { fontSize: 16, fontWeight: "bold", color: "#5E433B" },
-
-  totalBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#5E433B",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
+  totalBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#5E433B", paddingHorizontal: 20, paddingVertical: 12 },
   totalLabel: { fontSize: 13, color: "#E8DDD5", fontWeight: "bold" },
   totalAmt: { fontSize: 22, fontWeight: "bold", color: "#FDFBF0" },
-
-  tabRow: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 10,
-    borderWidth: 2,
-    borderColor: "#C8B8A2",
-    backgroundColor: "#FFF",
-    gap: 3,
-  },
+  tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  tab: { flex: 1, alignItems: "center", paddingVertical: 10, borderWidth: 2, borderColor: "#C8B8A2", backgroundColor: "#FFF", gap: 3 },
   tabActive: { borderColor: "#5E433B", backgroundColor: "#5E433B" },
   tabEmoji: { fontSize: 18 },
   tabLabel: { fontSize: 11, fontWeight: "bold", color: "#8D6E63" },
   tabLabelActive: { color: "#FDFBF0" },
-
-  hint: {
-    fontSize: 12,
-    color: "#8D6E63",
-    marginHorizontal: 16,
-    marginBottom: 10,
-    marginTop: 4,
-  },
-
+  hint: { fontSize: 12, color: "#8D6E63", marginHorizontal: 16, marginBottom: 10, marginTop: 4 },
   scroll: { flex: 1, paddingHorizontal: 16 },
-
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FFF",
-    borderWidth: 1.5,
-    borderColor: "#E8DDD5",
-    padding: 12,
-    marginBottom: 8,
-  },
-  rowActive: {
-    borderColor: "#5E433B",
-    backgroundColor: "#FFFDF9",
-  },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#E8DDD5", padding: 12, marginBottom: 8 },
   rowLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   rowName: { fontSize: 14, fontWeight: "bold", color: "#5E433B", flex: 1 },
-  rowAmt: { fontSize: 14, fontWeight: "bold", color: "#EC7424" },
-  rowAmtDim: { color: "#C8B8A2" },
   rowRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-
-  // Equal
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderWidth: 2,
-    borderColor: "#C8B8A2",
-    backgroundColor: "#FFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkboxActive: { backgroundColor: "#5E433B", borderColor: "#5E433B" },
-  checkmark: { color: "#FFF", fontWeight: "bold", fontSize: 13 },
-  footNote: {
-    fontSize: 12,
-    color: "#8D6E63",
-    textAlign: "center",
-    marginVertical: 12,
-    fontWeight: "bold",
-  },
-
-  // Ratio
-  ratioAmt: {
-    fontSize: 12,
-    color: "#8D6E63",
-    minWidth: 70,
-    textAlign: "right",
-  },
-  ratioInputWrap: {
-    borderWidth: 1.5,
-    borderColor: "#C8B8A2",
-    backgroundColor: "#FFF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minWidth: 56,
-    alignItems: "center",
-  },
-  ratioInput: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#5E433B",
-    textAlign: "center",
-    minWidth: 40,
-  },
+  footNote: { fontSize: 12, color: "#8D6E63", textAlign: "center", marginVertical: 12, fontWeight: "bold" },
+  ratioAmt: { fontSize: 12, color: "#8D6E63", minWidth: 70, textAlign: "right" },
+  ratioInputWrap: { borderWidth: 1.5, borderColor: "#C8B8A2", backgroundColor: "#FFF", paddingHorizontal: 8, paddingVertical: 4, minWidth: 56, alignItems: "center" },
+  ratioInput: { fontSize: 16, fontWeight: "bold", color: "#5E433B", textAlign: "center", minWidth: 40 },
   ratioLegend: { alignItems: "center", marginVertical: 8 },
-
-  // Custom
-  customInputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: "#C8B8A2",
-    backgroundColor: "#FFF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    gap: 4,
-  },
+  customInputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#C8B8A2", backgroundColor: "#FFF", paddingHorizontal: 8, paddingVertical: 4, gap: 4 },
   inputPrefix: { fontSize: 12, color: "#8D6E63", fontWeight: "bold" },
-  customInput: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#5E433B",
-    minWidth: 70,
-    textAlign: "right",
-  },
-
-  remainBar: {
-    marginTop: 8,
-    padding: 14,
-    alignItems: "center",
-    gap: 4,
-    borderWidth: 2,
-  },
+  customInput: { fontSize: 16, fontWeight: "bold", color: "#5E433B", minWidth: 70, textAlign: "right" },
+  remainBar: { marginTop: 8, padding: 14, alignItems: "center", gap: 4, borderWidth: 2 },
   remainBarOk: { borderColor: "#38B000", backgroundColor: "#F0FFF0" },
   remainBarWarn: { borderColor: "#E84A41", backgroundColor: "#FFF5F5" },
   remainText: { fontSize: 13, fontWeight: "bold", color: "#5E433B" },
   remainSub: { fontSize: 11, color: "#8D6E63" },
-
-  // Confirm
-  confirmBtn: {
-    position: "absolute",
-    bottom: 34,
-    left: 20,
-    right: 20,
-    backgroundColor: "#EC7424",
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    padding: 16,
-    alignItems: "center",
-    shadowColor: "#5E433B",
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 6,
-  },
+  confirmBtn: { position: "absolute", bottom: 34, left: 20, right: 20, backgroundColor: "#EC7424", borderWidth: 2, borderColor: "#5E433B", padding: 16, alignItems: "center", shadowColor: "#5E433B", shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0 },
   confirmText: { color: "#FFF", fontWeight: "bold", fontSize: 16 },
 });
 
 const sheetStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    backgroundColor: "#FDFBF0",
-    borderTopWidth: 3,
-    borderTopColor: "#5E433B",
-    padding: 24,
-    paddingBottom: 44,
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#5E433B",
-    textAlign: "center",
-    marginBottom: 18,
-  },
-  option: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E8DDD5",
-  },
-  optionCurrency: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#5E433B",
-    flex: 1,
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: "#FDFBF0", borderTopWidth: 3, borderTopColor: "#5E433B", padding: 24, paddingBottom: 44 },
+  sheetTitle: { fontSize: 16, fontWeight: "bold", color: "#5E433B", textAlign: "center", marginBottom: 18 },
+  option: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#E8DDD5" },
+  optionCurrency: { fontSize: 16, fontWeight: "bold", color: "#5E433B", flex: 1 },
   optionRate: { fontSize: 12, color: "#8D6E63" },
   optionSelected: { color: "#EC7424" },
   optionCheck: { fontSize: 16, color: "#EC7424", fontWeight: "bold" },
 });
 
 const calStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  sheet: {
-    backgroundColor: "#FFF",
-    width: "100%",
-    borderRadius: 16,
-    padding: 20,
-    paddingBottom: 24,
-    borderWidth: 2,
-    borderColor: "#5E433B",
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#5E433B",
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  monthRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", paddingHorizontal: 16 },
+  sheet: { backgroundColor: "#FFF", width: "100%", borderRadius: 16, padding: 20, paddingBottom: 24, borderWidth: 2, borderColor: "#5E433B" },
+  title: { fontSize: 16, fontWeight: "bold", color: "#5E433B", textAlign: "center", marginBottom: 16 },
+  monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   navBtn: { padding: 8 },
-  navText: {
-    fontSize: 26,
-    color: "#E84A41",
-    fontWeight: "bold",
-    lineHeight: 30,
-  },
+  navText: { fontSize: 26, color: "#E84A41", fontWeight: "bold", lineHeight: 30 },
   monthText: { fontSize: 16, color: "#5E433B", fontWeight: "600" },
   weekRow: { flexDirection: "row", marginBottom: 4 },
-  weekDay: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 13,
-    color: "#5E433B",
-    fontWeight: "600",
-    paddingVertical: 4,
-  },
+  weekDay: { flex: 1, textAlign: "center", fontSize: 13, color: "#5E433B", fontWeight: "600", paddingVertical: 4 },
   weekDaySun: { color: "#8D6E63" },
   grid: { flexDirection: "row", flexWrap: "wrap" },
-  cell: {
-    width: "14.28%",
-    aspectRatio: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cellSelected: {
-    backgroundColor: "#E84A41",
-    borderRadius: 100,
-  },
+  cell: { width: "14.28%", aspectRatio: 1, justifyContent: "center", alignItems: "center" },
+  cellSelected: { backgroundColor: "#E84A41", borderRadius: 100 },
   cellText: { fontSize: 16, color: "#333333", fontWeight: "500" },
   cellTextOther: { color: "#CCCCCC" },
   cellTextToday: { color: "#EC7424", fontWeight: "bold" },
   cellTextSelected: { color: "#FFF", fontWeight: "bold" },
-  hint: {
-    textAlign: "center",
-    color: "#8D6E63",
-    fontSize: 13,
-    marginTop: 12,
-    marginBottom: 16,
-  },
+  hint: { textAlign: "center", color: "#8D6E63", fontSize: 13, marginTop: 12, marginBottom: 16 },
   btnRow: { flexDirection: "row", gap: 12 },
-  cancelBtn: {
-    flex: 1,
-    backgroundColor: "#FDFBF0",
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    padding: 14,
-    alignItems: "center",
-  },
+  cancelBtn: { flex: 1, backgroundColor: "#FDFBF0", borderWidth: 2, borderColor: "#5E433B", padding: 14, alignItems: "center" },
   cancelText: { color: "#5E433B", fontWeight: "bold", fontSize: 15 },
-  confirmBtn: {
-    flex: 1,
-    backgroundColor: "#E84A41",
-    borderWidth: 2,
-    borderColor: "#5E433B",
-    padding: 14,
-    alignItems: "center",
-  },
+  confirmBtn: { flex: 1, backgroundColor: "#E84A41", borderWidth: 2, borderColor: "#5E433B", padding: 14, alignItems: "center" },
   confirmText: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
 });
