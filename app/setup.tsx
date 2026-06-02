@@ -4,7 +4,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/press-start-2p";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useLocalSearchParams, useRouter } from "expo-router"; // 🌟 引入參數 Hook
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, setDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
@@ -32,25 +32,32 @@ const characterList = [
 export default function SetupScreen() {
   const router = useRouter();
   const { mode } = useLocalSearchParams();
-  // mode === "edit" ? 編輯(修改) : 創立
-  const [name, setName] = useState(""); //輸入的使用者姓名
+  
+  const [name, setName] = useState(""); 
   const [loading, setLoading] = useState(false);
-  const [realIndex, setRealIndex] = useState(0); //陣列的0跟1
+  const [realIndex, setRealIndex] = useState(0); 
 
   let [fontsLoaded] = useFonts({ PressStart2P_400Regular });
 
-  // 🌟 核心功能：如果是編輯模式，自動載入目前的使用者資料
+  // 🌟 核心功能修改：相容舊的欄位與新的 ID 欄位比對
   useEffect(() => {
     const loadCurrentProfile = async () => {
       if (mode === "edit") {
         const stored = await AsyncStorage.getItem("@user_profile");
         if (stored) {
-          const { name: oldName, avatar: oldAvatarUri } = JSON.parse(stored);
-          setName(oldName);
-          // 比對目前頭像 URI，找到對應的 Index
-          const idx = characterList.findIndex(
-            (a) => Image.resolveAssetSource(a.uri).uri === oldAvatarUri,
-          );
+          const profile = JSON.parse(stored);
+          setName(profile.name);
+          
+          // 優先用我們新加的 characterId 比對，如果沒有，再退回用舊的 avatarUri 比對
+          let idx = -1;
+          if (profile.characterId) {
+            idx = characterList.findIndex((a) => a.id === profile.characterId);
+          } else if (profile.avatar) {
+            idx = characterList.findIndex(
+              (a) => Image.resolveAssetSource(a.uri).uri === profile.avatar,
+            );
+          }
+          
           if (idx !== -1) setRealIndex(idx);
         }
       }
@@ -58,7 +65,6 @@ export default function SetupScreen() {
     loadCurrentProfile();
   }, [mode]);
 
-  // 直接切換索引，不使用動畫
   const goToNext = () =>
     setRealIndex((prev) => (prev + 1) % characterList.length);
   const goToPrev = () =>
@@ -72,6 +78,9 @@ export default function SetupScreen() {
 
     setLoading(true);
     try {
+      // 🌟 拿到當前選中角色的「純字串 ID」（例如 "bear" 或 "cat"）
+      const charId = characterList[realIndex].id;
+
       const avatarUri = Image.resolveAssetSource(
         characterList[realIndex].uri,
       ).uri;
@@ -83,6 +92,7 @@ export default function SetupScreen() {
           {
             displayName: name,
             photoURL: avatarUri,
+            characterId: charId, // 🔴 追加儲存角色純字串 ID 給隊伍頁看！
             updatedAt: new Date(),
             isSetupComplete: true,
           },
@@ -90,18 +100,22 @@ export default function SetupScreen() {
         );
       }
 
-      // 2. 同步本機 AsyncStorage (給 SideMenu 用)
+      // 2. 同步本機 AsyncStorage
       await AsyncStorage.setItem(
         "@user_profile",
-        JSON.stringify({ name, avatar: avatarUri }),
+        JSON.stringify({ 
+          name, 
+          avatar: avatarUri, 
+          characterId: charId // 🔴 本機也一併存入字串 ID
+        }),
       );
 
-      // 3. 🌟 根據模式跳轉
+      // 3. 根據模式跳轉
       if (mode === "edit") {
         Alert.alert("成功", "資料已更新！");
-        router.back(); // 編輯完，回上一頁
+        router.back(); 
       } else {
-        router.replace("/home"); // 第一次註冊完，去主頁
+        router.replace("/home"); 
       }
     } catch (error) {
       console.error(error);
@@ -138,38 +152,34 @@ export default function SetupScreen() {
             </Text>
           </View>
 
-          {/* 角色顯示區域：移除所有外框，放大角色 */}
           <View style={styles.character_list}>
             <Pressable
               onPress={goToPrev}
               style={({ pressed }) => [
-                // 依然保留微幅下移的動感
                 pressed && { transform: [{ translateY: 2 }] },
               ]}
             >
               {({ pressed }) => (
                 <View>
-                  {/* 1. 平常顯示的箭頭 */}
                   <Image
                     source={require("../img/caret_left.png")}
                     style={[
                       styles.caret,
-                      { opacity: pressed ? 0 : 1 }, // 🌟 按下時隱藏
+                      { opacity: pressed ? 0 : 1 },
                     ]}
                   />
-
-                  {/* 2. 按下時顯示的箭頭 (絕對定位疊在上面) */}
                   <Image
                     source={require("../img/caret_left_pressed.png")}
                     style={[
                       styles.caret,
                       styles.caret_absolute,
-                      { opacity: pressed ? 1 : 0 }, // 🌟 按下時顯示
+                      { opacity: pressed ? 1 : 0 },
                     ]}
                   />
                 </View>
               )}
             </Pressable>
+            
             <View style={styles.img_container}>
               <Image
                 source={characterList[realIndex].uri}
@@ -181,28 +191,24 @@ export default function SetupScreen() {
             <Pressable
               onPress={goToNext}
               style={({ pressed }) => [
-                // 依然保留微幅下移的動感
                 pressed && { transform: [{ translateY: 2 }] },
               ]}
             >
               {({ pressed }) => (
                 <View>
-                  {/* 1. 平常顯示的箭頭 */}
                   <Image
                     source={require("../img/caret_right.png")}
                     style={[
                       styles.caret,
-                      { opacity: pressed ? 0 : 1 }, // 🌟 按下時隱藏
+                      { opacity: pressed ? 0 : 1 },
                     ]}
                   />
-
-                  {/* 2. 按下時顯示的箭頭 (絕對定位疊在上面) */}
                   <Image
                     source={require("../img/caret_right_pressed.png")}
                     style={[
                       styles.caret,
                       styles.caret_absolute,
-                      { opacity: pressed ? 1 : 0 }, // 🌟 按下時顯示
+                      { opacity: pressed ? 1 : 0 },
                     ]}
                   />
                 </View>
@@ -221,12 +227,12 @@ export default function SetupScreen() {
                 onChangeText={setName}
                 maxLength={10}
               />
-
               <Image
                 source={require("../img/enter_line.png")}
                 style={styles.enter_line}
               />
             </View>
+            
             <Pressable
               onPress={handleSaveProfile}
               disabled={loading}
@@ -248,92 +254,16 @@ export default function SetupScreen() {
 }
 
 const styles = StyleSheet.create({
-  auth_content: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  innerContainer: {
-    flexGrow: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  top_text: {
-    width: "100%",
-    gap: 5,
-    alignItems: "center",
-  },
-  character_list: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center", // 改為居中
-    width: "100%", // 改為滿寬
-    height: 250, // 稍微縮小高度確保 iPhone SE 等小手機也放得下
-    marginVertical: 20,
-    paddingHorizontal: 10,
-  },
-  caret_wrapper: {
-    width: 50, // 給予明確的點擊區域寬度
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 10, // 確保箭頭在最上層
-  },
-  caret_inner: {
-    width: 30,
-    height: 30,
-    position: "relative",
-  },
-  caret: {
-    width: 30,
-    height: 30,
-    resizeMode: "contain",
-  },
-  caret_absolute: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-  },
-  img_container: {
-    flex: 1, // 讓角色圖佔據剩餘空間
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  img_character: {
-    width: 180, // 限制角色寬度避免擠壓箭頭
-    height: "100%",
-  },
-  enter_container: {
-    backgroundColor: COLORS.bg2,
-    width: 280,
-    height: "auto",
-    gap: 20,
-    borderWidth: 2,
-    borderColor: COLORS.line,
-    paddingHorizontal: 26,
-    paddingVertical: 30,
-    alignItems: "center",
-    justifyContent: "space-between",
-    shadowColor: COLORS.line,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 4,
-  },
-
-  enter_text: {
-    width: "100%",
-    alignItems: "center",
-  },
-  text_input_style: {
-    textAlign: "center",
-    paddingBottom: 0, // 🌟 關鍵：強制文字貼近底部
-    minWidth: "100%",
-  },
-
-  enter_line: {
-    width: "100%",
-    resizeMode: "contain",
-  },
+  auth_content: { flex: 1, backgroundColor: COLORS.bg },
+  innerContainer: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 20 },
+  top_text: { width: "100%", gap: 5, alignItems: "center" },
+  character_list: { flexDirection: "row", alignItems: "center", justifyContent: "center", width: "100%", height: 250, marginVertical: 20, paddingHorizontal: 10 },
+  caret: { width: 30, height: 30, resizeMode: "contain" },
+  caret_absolute: { position: "absolute", top: 0, left: 0 },
+  img_container: { flex: 1, height: "100%", justifyContent: "center", alignItems: "center" },
+  img_character: { width: 180, height: "100%" },
+  enter_container: { backgroundColor: COLORS.bg2, width: 280, height: "auto", gap: 20, borderWidth: 2, borderColor: COLORS.line, paddingHorizontal: 26, paddingVertical: 30, alignItems: "center", justifyContent: "space-between", shadowColor: COLORS.line, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 0, elevation: 4 },
+  enter_text: { width: "100%", alignItems: "center" },
+  text_input_style: { textAlign: "center", paddingBottom: 0, minWidth: "100%" },
+  enter_line: { width: "100%", resizeMode: "contain" },
 });
