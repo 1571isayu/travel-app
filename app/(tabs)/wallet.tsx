@@ -173,8 +173,6 @@ export default function WalletScreen() {
   const [deletingTransaction, setDeletingTransaction] = useState<Transaction | null>(null);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
 
-
-
   useEffect(() => {
     let membersUnsub: () => void = () => { };
     let txUnsub: () => void = () => { };
@@ -206,6 +204,7 @@ export default function WalletScreen() {
 
     return () => { membersUnsub(); txUnsub(); };
   }, [paramId]);
+
   // --- 滑動切換控制 ---
   const handleTabPress = (tab: "debt" | "details") => {
     setActiveTab(tab);
@@ -219,6 +218,7 @@ export default function WalletScreen() {
     const offsetX = e.nativeEvent.contentOffset.x;
     setActiveTab(offsetX < SCREEN_WIDTH / 2 ? "debt" : "details");
   };
+
   useEffect(() => {
     const fetchRates = async () => {
       try {
@@ -1042,7 +1042,7 @@ function TransactionFormModal({
       }
       onClose();
     } catch (e) {
-      Alert.alert("儲存失敗", "請檢查網路連試試");
+      Alert.alert("儲存失敗", "請檢查網路連線試試");
       console.error(e);
     } finally {
       setSaving(false);
@@ -1060,230 +1060,229 @@ function TransactionFormModal({
   const payer = members.find((m) => m.id === payerId);
 
   return (
-    <>
-      <Modal visible={visible} animationType="slide">
-        {showSplitScreen ? (
-          <SplitScreenView
-            members={members}
-            twdTotal={twdTotal}
-            initialConfig={splitConfig}
-            onConfirm={(cfg) => {
-              setSplitConfig(cfg);
-              setShowSplitScreen(false);
-            }}
-            onClose={() => setShowSplitScreen(false)}
-          />
-        ) : (
-          <View style={addStyles.container}>
-            <View style={addStyles.header}>
-              <TouchableOpacity onPress={onClose} style={addStyles.backBtn}>
-                <Text style={addStyles.backText}>{"<"}</Text>
+    <Modal visible={visible} animationType="slide">
+      {showSplitScreen ? (
+        <SplitScreenView
+          members={members}
+          twdTotal={twdTotal}
+          initialConfig={splitConfig}
+          onConfirm={(cfg) => {
+            setSplitConfig(cfg);
+            setShowSplitScreen(false);
+          }}
+          onClose={() => setShowSplitScreen(false)}
+        />
+      ) : (
+        <View style={addStyles.container}>
+          <View style={addStyles.header}>
+            <TouchableOpacity onPress={onClose} style={addStyles.backBtn}>
+              <Text style={addStyles.backText}>{"<"}</Text>
+            </TouchableOpacity>
+            <View style={addStyles.amountRow}>
+              <TouchableOpacity
+                style={addStyles.currencyBox}
+                onPress={() => setShowCurrencyPicker(true)}
+              >
+                <Text style={addStyles.currencyText}>{currency}</Text>
+                <ChevronDown color="#5E433B" size={13} />
               </TouchableOpacity>
-              <View style={addStyles.amountRow}>
-                <TouchableOpacity
-                  style={addStyles.currencyBox}
-                  onPress={() => setShowCurrencyPicker(true)}
-                >
-                  <Text style={addStyles.currencyText}>{currency}</Text>
-                  <ChevronDown color="#5E433B" size={13} />
-                </TouchableOpacity>
-                <Text style={addStyles.dollarSign}>$</Text>
-                <TextInput
-                  style={addStyles.amountInput}
-                  value={amountStr}
-                  onChangeText={setAmountStr}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor="#C8B8A2"
-                />
-                {currency !== "TWD" && twdTotal > 0 && (
-                  <Text style={addStyles.convertedHint}>≈ NT${twdTotal}</Text>
-                )}
-              </View>
+              <Text style={addStyles.dollarSign}>$</Text>
+              <TextInput
+                style={addStyles.amountInput}
+                value={amountStr}
+                onChangeText={setAmountStr}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor="#C8B8A2"
+              />
+              {currency !== "TWD" && twdTotal > 0 && (
+                <Text style={addStyles.convertedHint}>≈ NT${twdTotal}</Text>
+              )}
             </View>
-
-            <KeyboardAvoidingView
-              style={{ flex: 1 }}
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-            >
-              <ScrollView
-                style={addStyles.scroll}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-              >
-                <Text style={addStyles.label}>日期</Text>
-                <TouchableOpacity
-                  style={addStyles.dropdown}
-                  onPress={() => setShowCalendar(true)}
-                >
-                  <Text style={addStyles.dropdownText}>{datetime}</Text>
-                  <ChevronDown color="#5E433B" size={16} />
-                </TouchableOpacity>
-
-                <Text style={addStyles.label}>品項</Text>
-                <TextInput
-                  style={addStyles.field}
-                  value={item}
-                  onChangeText={setItem}
-                  placeholder="請輸入名稱"
-                  placeholderTextColor="#C8B8A2"
-                />
-
-                <Text style={addStyles.label}>付款人</Text>
-                <TouchableOpacity
-                  style={addStyles.dropdown}
-                  onPress={() => setShowPayerPicker(true)}
-                >
-                  <Text
-                    style={[
-                      addStyles.dropdownText,
-                      !payerId && addStyles.placeholder,
-                    ]}
-                  >
-                    {payer ? payer.name : "請選擇成員"}
-                  </Text>
-                  <ChevronDown color="#5E433B" size={16} />
-                </TouchableOpacity>
-
-                <Text style={addStyles.label}>替誰付錢</Text>
-                <TouchableOpacity
-                  style={addStyles.splitEntryRow}
-                  onPress={() => setShowSplitScreen(true)}
-                >
-                  <View style={addStyles.splitEntryLeft}>
-                    <View style={addStyles.avatarStack}>
-                      {members.slice(0, 4).map((m, i) => (
-                        <View
-                          key={m.id}
-                          style={[addStyles.avatarStackItem, { left: i * 22 }]}
-                        >
-                          <Avatar member={m} size={28} />
-                        </View>
-                      ))}
-                    </View>
-                    <Text style={addStyles.splitEntrySummary}>
-                      {splitSummary(splitConfig, members)}
-                    </Text>
-                  </View>
-                  <ChevronRight color="#5E433B" size={18} />
-                </TouchableOpacity>
-
-                <Text style={addStyles.label}>圖片</Text>
-                <TouchableOpacity
-                  style={addStyles.imagePicker}
-                  onPress={pickImage}
-                >
-                  {imageUri ? (
-                    <Image
-                      source={{ uri: imageUri }}
-                      style={addStyles.imagePreview}
-                      resizeMode="cover"
-                    />
-                  ) : null}
-                </TouchableOpacity>
-
-                <Text style={addStyles.label}>備註</Text>
-                <TextInput
-                  style={[
-                    addStyles.field,
-                    { height: 50, textAlignVertical: "top" },
-                  ]}
-                  value={note}
-                  onChangeText={setNote}
-                  placeholder="補充備註..."
-                  placeholderTextColor="#C8B8A2"
-                  multiline
-                />
-
-                <TouchableOpacity
-                  style={addStyles.saveBtn}
-                  onPress={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <ActivityIndicator color="#FFF" />
-                  ) : (
-                    <Text style={addStyles.saveBtnText}>save</Text>
-                  )}
-                </TouchableOpacity>
-
-                <View style={{ height: 50 }} />
-              </ScrollView>
-            </KeyboardAvoidingView>
-
-            {/* 貨幣彈出 Sheet */}
-            <Modal visible={showCurrencyPicker} transparent animationType="slide">
-              <TouchableOpacity
-                style={sheetStyles.overlay}
-                onPress={() => setShowCurrencyPicker(false)}
-              >
-                <View style={sheetStyles.sheet}>
-                  <Text style={sheetStyles.sheetTitle}>選擇貨幣</Text>
-                  {CURRENCIES.map((c) => (
-                    <TouchableOpacity
-                      key={c}
-                      style={sheetStyles.option}
-                      onPress={() => {
-                        setCurrency(c);
-                        setShowCurrencyPicker(false);
-                      }}
-                    >
-                      <Text style={sheetStyles.optionCurrency}>{c}</Text>
-                      <Text style={sheetStyles.optionRate}>
-                        {c === "TWD"
-                          ? "基準貨幣"
-                          : `1 ${c} ≈ NT$ ${rates[c] ?? FALLBACK_RATES[c]}`}
-                      </Text>
-                      {c === currency && <Text style={sheetStyles.optionCheck}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </TouchableOpacity>
-            </Modal>
-
-            {/* 付款人彈出 Sheet */}
-            <Modal visible={showPayerPicker} transparent animationType="slide">
-              <TouchableOpacity
-                style={sheetStyles.overlay}
-                onPress={() => setShowPayerPicker(false)}
-              >
-                <View style={sheetStyles.sheet}>
-                  <Text style={sheetStyles.sheetTitle}>選擇付款人</Text>
-                  {members.map((m) => (
-                    <TouchableOpacity
-                      key={m.id}
-                      style={sheetStyles.option}
-                      onPress={() => {
-                        setPayerId(m.id);
-                        setShowPayerPicker(false);
-                      }}
-                    >
-                      <Avatar member={m} size={36} />
-                      <Text style={[sheetStyles.optionCurrency, m.id === payerId && sheetStyles.optionSelected]}>
-                        {m.name}
-                      </Text>
-                      {m.id === payerId && <Text style={sheetStyles.optionCheck}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </TouchableOpacity>
-            </Modal>
           </View>
-        )}
-      </Modal>
 
-      <CalendarPickerModal
-        visible={showCalendar}
-        selectedDate={selectedDate}
-        onConfirm={(date) => {
-          setSelectedDate(date);
-          setDatetime(fmtDatetime(date));
-          setShowCalendar(false);
-        }}
-        onClose={() => setShowCalendar(false)}
-      />
-    </>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+          >
+            <ScrollView
+              style={addStyles.scroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={addStyles.label}>日期</Text>
+              <TouchableOpacity
+                style={addStyles.dropdown}
+                onPress={() => setShowCalendar(true)}
+              >
+                <Text style={addStyles.dropdownText}>{datetime}</Text>
+                <ChevronDown color="#5E433B" size={16} />
+              </TouchableOpacity>
+
+              <Text style={addStyles.label}>品項</Text>
+              <TextInput
+                style={addStyles.field}
+                value={item}
+                onChangeText={setItem}
+                placeholder="請輸入名稱"
+                placeholderTextColor="#C8B8A2"
+              />
+
+              <Text style={addStyles.label}>付款人</Text>
+              <TouchableOpacity
+                style={addStyles.dropdown}
+                onPress={() => setShowPayerPicker(true)}
+              >
+                <Text
+                  style={[
+                    addStyles.dropdownText,
+                    !payerId && addStyles.placeholder,
+                  ]}
+                >
+                  {payer ? payer.name : "請選擇成員"}
+                </Text>
+                <ChevronDown color="#5E433B" size={16} />
+              </TouchableOpacity>
+
+              <Text style={addStyles.label}>替誰付錢</Text>
+              <TouchableOpacity
+                style={addStyles.splitEntryRow}
+                onPress={() => setShowSplitScreen(true)}
+              >
+                <View style={addStyles.splitEntryLeft}>
+                  <View style={addStyles.avatarStack}>
+                    {members.slice(0, 4).map((m, i) => (
+                      <View
+                        key={m.id}
+                        style={[addStyles.avatarStackItem, { left: i * 22 }]}
+                      >
+                        <Avatar member={m} size={28} />
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={addStyles.splitEntrySummary}>
+                    {splitSummary(splitConfig, members)}
+                  </Text>
+                </View>
+                <ChevronRight color="#5E433B" size={18} />
+              </TouchableOpacity>
+
+              <Text style={addStyles.label}>圖片</Text>
+              <TouchableOpacity
+                style={addStyles.imagePicker}
+                onPress={pickImage}
+              >
+                {imageUri ? (
+                  <Image
+                    source={{ uri: imageUri }}
+                    style={addStyles.imagePreview}
+                    resizeMode="cover"
+                  />
+                ) : null}
+              </TouchableOpacity>
+
+              <Text style={addStyles.label}>備註</Text>
+              <TextInput
+                style={[
+                  addStyles.field,
+                  { height: 50, textAlignVertical: "top" },
+                ]}
+                value={note}
+                onChangeText={setNote}
+                placeholder="補充備註..."
+                placeholderTextColor="#C8B8A2"
+                multiline
+              />
+
+              <TouchableOpacity
+                style={addStyles.saveBtn}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={addStyles.saveBtnText}>save</Text>
+                )}
+              </TouchableOpacity>
+
+              <View style={{ height: 50 }} />
+            </ScrollView>
+          </KeyboardAvoidingView>
+
+          {/* 貨幣彈出 Sheet */}
+          <Modal visible={showCurrencyPicker} transparent animationType="slide">
+            <TouchableOpacity
+              style={sheetStyles.overlay}
+              onPress={() => setShowCurrencyPicker(false)}
+            >
+              <View style={sheetStyles.sheet}>
+                <Text style={sheetStyles.sheetTitle}>選擇貨幣</Text>
+                {CURRENCIES.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={sheetStyles.option}
+                    onPress={() => {
+                      setCurrency(c);
+                      setShowCurrencyPicker(false);
+                    }}
+                  >
+                    <Text style={sheetStyles.optionCurrency}>{c}</Text>
+                    <Text style={sheetStyles.optionRate}>
+                      {c === "TWD"
+                        ? "基準貨幣"
+                        : `1 ${c} ≈ NT$ ${rates[c] ?? FALLBACK_RATES[c]}`}
+                    </Text>
+                    {c === currency && <Text style={sheetStyles.optionCheck}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
+          {/* 付款人彈出 Sheet */}
+          <Modal visible={showPayerPicker} transparent animationType="slide">
+            <TouchableOpacity
+              style={sheetStyles.overlay}
+              onPress={() => setShowPayerPicker(false)}
+            >
+              <View style={sheetStyles.sheet}>
+                <Text style={sheetStyles.sheetTitle}>選擇付款人</Text>
+                {members.map((m) => (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={sheetStyles.option}
+                    onPress={() => {
+                      setPayerId(m.id);
+                      setShowPayerPicker(false);
+                    }}
+                  >
+                    <Avatar member={m} size={36} />
+                    <Text style={[sheetStyles.optionCurrency, m.id === payerId && sheetStyles.optionSelected]}>
+                      {m.name}
+                    </Text>
+                    {m.id === payerId && <Text style={sheetStyles.optionCheck}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
+          {/* 🌟 修正：將月曆選擇器移至主 Modal 內部，確保 iOS 正確渲染 */}
+          <CalendarPickerModal
+            visible={showCalendar}
+            selectedDate={selectedDate}
+            onConfirm={(date) => {
+              setSelectedDate(date);
+              setDatetime(fmtDatetime(date));
+              setShowCalendar(false);
+            }}
+            onClose={() => setShowCalendar(false)}
+          />
+        </View>
+      )}
+    </Modal>
   );
 }
 
