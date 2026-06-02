@@ -1,13 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
+  arrayRemove,
   doc,
+  getDoc,
   onSnapshot,
   updateDoc,
-  arrayRemove,
-  getDoc,
 } from "firebase/firestore";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -31,7 +31,9 @@ const CHARACTER_MAP: Record<string, any> = {
 
 function getCharacterSource(characterId: string | null | undefined) {
   if (!characterId) return null;
-  return CHARACTER_MAP[characterId] ?? null;
+  // 確保拿到的字串能去除可能多餘的引號或空格，並對應到對照表
+  const key = String(characterId).trim();
+  return CHARACTER_MAP[key] ?? null;
 }
 
 // ─────────────────────────────────────────────
@@ -49,7 +51,7 @@ const TUTORIAL_STEPS = [
     desc: "把隊伍 ID 分享給朋友，朋友在首頁點擊「JOIN」輸入 ID 即可加入，最多 5 人。",
   },
   {
-    icon: "📅",
+    icon: "🤝",
     title: "新增行程",
     desc: "進入冒險後點右下角「＋」按鈕，填寫時間、地點、備註，立即同步給所有隊友。",
   },
@@ -95,7 +97,9 @@ export default function TeamScreen() {
       if (stored) {
         const profile = JSON.parse(stored);
         if (profile.name) setMyName(profile.name);
-        if (profile.characterId) setMyAvatar(profile.characterId); // 存 characterId
+        // 🌟 修正點：確保正確取得 setup 中儲存的項目 (有時可能叫 avatar 或 characterId)
+        const charId = profile.characterId || profile.avatar || null;
+        setMyAvatar(charId); 
         if (profile.uid) setMyUid(profile.uid);
       }
     } catch (e) {
@@ -103,7 +107,6 @@ export default function TeamScreen() {
     }
   }, []);
 
-  // useFocusEffect：每次切換到這個 tab 都執行一次，確保頭像是最新的
   useFocusEffect(
     useCallback(() => {
       loadProfile();
@@ -119,7 +122,6 @@ export default function TeamScreen() {
         if (!snap.exists()) return;
         const rawMembers: any[] = snap.data().members || [];
 
-        // 用每個成員的 uid 去 users collection 抓 displayName / characterId
         const enriched = await Promise.all(
           rawMembers.map(async (m) => {
             if (!m.uid) return m;
@@ -129,8 +131,8 @@ export default function TeamScreen() {
                 const u = userSnap.data();
                 return {
                   ...m,
-                  name: u.displayName || m.name || "冒險者",
-                  characterId: u.characterId || null,
+                  name: u.displayName || u.name || m.name || "冒險者",
+                  characterId: u.characterId || u.avatar || null, // 🌟 兼顧兩種欄位命名命名
                 };
               }
             } catch (e) {
@@ -162,7 +164,6 @@ export default function TeamScreen() {
     if (!id || !myUid) return;
 
     try {
-      // 1. 從 Firebase members 移除自己
       const adventureRef = doc(db, "adventures", id as string);
       const snap = await getDoc(adventureRef);
       if (snap.exists()) {
@@ -173,7 +174,6 @@ export default function TeamScreen() {
         }
       }
 
-      // 2. 從本機 @my_adventures_v2 移除這筆
       const savedData = await AsyncStorage.getItem("@my_adventures_v2");
       if (savedData) {
         const list = JSON.parse(savedData);
@@ -184,7 +184,6 @@ export default function TeamScreen() {
         );
       }
 
-      // 3. 清除當前冒險快取
       await AsyncStorage.removeItem("@current_adventure_id");
 
       Alert.alert("已離開隊伍", "你已成功退出此冒險。", [
@@ -196,7 +195,6 @@ export default function TeamScreen() {
     }
   };
 
-  // ── 判斷是否為隊長（members 陣列第一位）──
   const isLeader = (uid: string) =>
     members.length > 0 && members[0].uid === uid;
 
@@ -206,7 +204,7 @@ export default function TeamScreen() {
     const displayName = isSelf ? myName : m.name || "冒險者";
     const borderColor = m.color || "#5E433B";
 
-    // 頭像直接用 characterId 對應本地圖片，不依賴任何 URI
+    // 🌟 修正點：如果是自己，拿最新的 myAvatar 狀態；如果是隊友，拿補強後的 m.characterId
     const characterId = isSelf ? myAvatar : m.characterId;
     const avatarSource = getCharacterSource(characterId);
 
@@ -218,7 +216,9 @@ export default function TeamScreen() {
             style={[styles.memberAvatar, { borderColor }]}
           />
         ) : (
-          <View style={[styles.memberAvatarPlaceholder, { borderColor }]} />
+          <View style={[styles.memberAvatarPlaceholder, { borderColor }]}>
+             <Text style={styles.placeholderQuestion}>?</Text>
+          </View>
         )}
         <View style={styles.memberInfo}>
           <Text style={styles.memberName}>{displayName}</Text>
@@ -228,7 +228,6 @@ export default function TeamScreen() {
     );
   };
 
-  // ── 排序：自己永遠排第一，隊長其次，其他人照原順序 ──
   const sortedMembers = [...members].sort((a, b) => {
     if (a.uid === myUid) return -1;
     if (b.uid === myUid) return 1;
@@ -237,23 +236,24 @@ export default function TeamScreen() {
     return 0;
   });
 
-  // ──────────────────────────────────────────
   return (
     <View style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* ── 自己的頭像區 ── */}
+        {/* ── 頂部自己的大頭像區 ── */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarWrapper}>
-            {myAvatar ? (
+            {myAvatar && getCharacterSource(myAvatar) ? (
               <Image
                 source={getCharacterSource(myAvatar)}
                 style={styles.avatarImg}
               />
             ) : (
-              <View style={styles.avatarPlaceholder} />
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.bigPlaceholderQuestion}>?</Text>
+              </View>
             )}
           </View>
           <Text style={styles.avatarName}>{myName.toUpperCase()}</Text>
@@ -410,7 +410,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   avatarImg: { width: "100%", height: "100%" },
-  avatarPlaceholder: { flex: 1, backgroundColor: "#D7CCC8" },
+  avatarPlaceholder: { flex: 1, backgroundColor: "#D7CCC8", justifyContent: "center", alignItems: "center" },
+  bigPlaceholderQuestion: { fontSize: 32, fontWeight: "bold", color: BROWN },
   avatarName: { fontFamily: "PressStart2P", fontSize: 14, color: BROWN },
 
   // 卡片
@@ -471,7 +472,10 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     borderWidth: 3,
     backgroundColor: "#D7CCC8",
+    justifyContent: "center",
+    alignItems: "center",
   },
+  placeholderQuestion: { fontSize: 18, fontWeight: "bold", color: BROWN },
   memberInfo: { gap: 4 },
   memberName: { fontSize: 16, color: BROWN, fontWeight: "bold" },
   memberBadge: {
