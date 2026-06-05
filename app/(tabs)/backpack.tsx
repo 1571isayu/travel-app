@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import { Check, ClipboardList, CreditCard, Pencil, Plus, Trash2, X } from "lucide-react-native";
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Image,
@@ -14,21 +14,23 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View,
+  useWindowDimensions,
+  View
 } from "react-native";
-
 // 定義資料型別
 type TodoItem = { id: string; text: string; completed: boolean };
 type Document = { id: string; uri: string; title: string; note: string };
 
 export default function BackpackScreen() {
+  const { width: screenWidth } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<"todo" | "wallet">("todo");
-
+  //左右滑動頁面
+  const horizontalScrollRef = useRef<ScrollView>(null);
   // Todo States
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [newTodo, setNewTodo] = useState("");
   const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null);
-  
+
   // 🔴 複選模式 States
   const [isSelectMode, setIsSelectMode] = useState(false); // 是否啟動複選模式
   const [selectedTodoIds, setSelectedTodoIds] = useState<string[]>([]); // 紀錄被選中的 Todo ID 陣列
@@ -53,8 +55,21 @@ export default function BackpackScreen() {
 
   useEffect(() => {
     loadData();
-  }, []);
 
+  }, []);
+  // 點擊上方標籤時，讓 ScrollView 滾動到對應位置
+  const switchTab = (tab: "todo" | "wallet") => {
+    setActiveTab(tab);
+    const offsetX = tab === "todo" ? 0 : screenWidth;
+    horizontalScrollRef.current?.scrollTo({ x: offsetX, animated: true });
+  };
+
+  // 左右滑動結束後，更新目前的 Tab 狀態
+  const handleMomentumScrollEnd = (e: any) => {
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const pageIndex = Math.round(offsetX / screenWidth);
+    setActiveTab(pageIndex === 0 ? "todo" : "wallet");
+  };
   // --- 資料持久化 ---
   const loadData = async () => {
     const savedTodos = await AsyncStorage.getItem("@backpack_todos");
@@ -228,15 +243,17 @@ export default function BackpackScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       {/* 頂部切換 Tab (在複選模式下隱藏，改為複選工具列) */}
       {!isSelectMode ? (
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tab, activeTab === "todo" && styles.activeTab]}
-            onPress={() => setActiveTab("todo")}
+            onPress={() => switchTab("todo")}
           >
-            <ClipboardList color={activeTab === "todo" ? "#FFF" : "#4A342E"} size={20} />
             <Text style={[styles.tabText, activeTab === "todo" && styles.activeTabText]}>
               準備清單
             </Text>
@@ -244,9 +261,8 @@ export default function BackpackScreen() {
 
           <TouchableOpacity
             style={[styles.tab, activeTab === "wallet" && styles.activeTab]}
-            onPress={() => setActiveTab("wallet")}
+            onPress={() => switchTab("wallet")}
           >
-            <CreditCard color={activeTab === "wallet" ? "#FFF" : "#4A342E"} size={20} />
             <Text style={[styles.tabText, activeTab === "wallet" && styles.activeTabText]}>
               數位證件
             </Text>
@@ -259,8 +275,8 @@ export default function BackpackScreen() {
             <Text style={styles.batchCancelText}>取消</Text>
           </TouchableOpacity>
           <Text style={styles.batchTitle}>已選取 {selectedTodoIds.length} 個裝備</Text>
-          <TouchableOpacity 
-            onPress={() => setIsDeleteModalVisible(true)} 
+          <TouchableOpacity
+            onPress={() => setIsDeleteModalVisible(true)}
             style={styles.batchDeleteBtn}
           >
             <Trash2 color="#FFF" size={16} style={{ marginRight: 4 }} />
@@ -273,138 +289,149 @@ export default function BackpackScreen() {
         <Image source={require("../../img/ad_line.png")} style={styles.separator} />
       </View>
 
-      {activeTab === "todo" ? (
-        <KeyboardAvoidingView
-          style={styles.contentTodoContainer}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
-        >
-          {/* 上方：滾動列表區 */}
-          <ScrollView
-            style={styles.todoListScroll}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
+      <ScrollView
+        ref={horizontalScrollRef}
+        horizontal
+        pagingEnabled // 開啟整頁翻動
+        showsHorizontalScrollIndicator={false} // 隱藏底部捲軸
+        bounces={false} // 避免在邊緣滑動時產生回彈效果（可依喜好保留）
+        onMomentumScrollEnd={handleMomentumScrollEnd} // 綁定滑動結束事件
+        style={{ flex: 1, width: "100%" }} // <--- 補上這一行
+        contentContainerStyle={{ width: screenWidth * 2 }}
+      >
+        <View style={{ width: screenWidth, height: "100%", overflow: "hidden"}}>
+          <View
+            style={styles.contentTodoContainer}
           >
-            {todos.map((item) => {
-              const isSelected = selectedTodoIds.includes(item.id);
-              return (
+            {/* 上方：滾動列表區 */}
+            <ScrollView
+              style={styles.todoListScroll}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {todos.map((item) => {
+                const isSelected = selectedTodoIds.includes(item.id);
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      styles.todoItem,
+                      editingTodo?.id === item.id && styles.todoItemEditing,
+                      isSelectMode && isSelected && styles.todoItemCheckedModal
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => handlePressTodo(item)}
+                    onLongPress={() => handleLongPressTodo(item)}
+                    delayLongPress={600}
+                  >
+                    <View style={styles.todoTextRow}>
+                      {/* 左側勾勾區域 */}
+                      <TouchableOpacity
+                        onPress={() => handleToggleComplete(item)}
+                        style={{ marginRight: 12 }}
+                      >
+                        {isSelectMode ? (
+                          /* 🔴 複選選取框樣式 */
+                          <View style={[styles.selectCheckbox, isSelected && styles.selectCheckboxActive]}>
+                            {isSelected && <Check color="#FFF" size={14} strokeWidth={3} />}
+                          </View>
+                        ) : (
+                          /* 普通任務狀態勾勾 */
+                          <View style={[styles.customCheckbox, item.completed && styles.customCheckboxChecked]}>
+                            {item.completed && <Check color="#FFF" size={14} strokeWidth={3} />}
+                          </View>
+                        )}
+                      </TouchableOpacity>
+
+                      <Text style={[
+                        styles.todoText,
+                        item.completed && !isSelectMode && styles.todoCompleted,
+                        isSelectMode && isSelected && { color: "#EC7424" }
+                      ]}>
+                        {item.text}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* 下方：固定在最底部的輸入區（在複選模式下暫時鎖定/隱藏） */}
+            {!isSelectMode && (
+              <View style={styles.bottomInputContainer}>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    ref={todoInputRef}
+                    style={[styles.pixelInput, editingTodo && styles.pixelInputEditing]}
+                    placeholder={editingTodo ? "正在修改裝備..." : "新增裝備..."}
+                    value={newTodo}
+                    onChangeText={setNewTodo}
+                    returnKeyType="done"
+                    onSubmitEditing={handleTodoSubmit}
+                  />
+                  <TouchableOpacity
+                    style={[styles.addBtn, editingTodo && { backgroundColor: "#3498DB" }]}
+                    onPress={handleTodoSubmit}
+                  >
+                    {editingTodo ? <Check color="#FFF" size={24} /> : <Plus color="#FFF" size={24} />}
+                  </TouchableOpacity>
+
+                  {editingTodo && (
+                    <TouchableOpacity
+                      style={[styles.addBtn, { backgroundColor: "#95A5A6" }]}
+                      onPress={() => {
+                        setEditingTodo(null);
+                        setNewTodo("");
+                        Keyboard.dismiss();
+                      }}
+                    >
+                      <X color="#FFF" size={24} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+        <View style={{ width: screenWidth, height: "100%",overflow: "hidden" }}>
+          <View style={styles.content}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.docGrid}>
+              {documents.map((doc) => (
                 <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.todoItem, 
-                    editingTodo?.id === item.id && styles.todoItemEditing,
-                    isSelectMode && isSelected && styles.todoItemCheckedModal
-                  ]}
-                  activeOpacity={0.8}
-                  onPress={() => handlePressTodo(item)}
-                  onLongPress={() => handleLongPressTodo(item)}
+                  key={doc.id}
+                  style={styles.polaroidCardContainer}
+                  activeOpacity={0.9}
+                  onPress={() => openEditModal(doc)}
+                  onLongPress={() => handleLongPressDoc(doc)}
                   delayLongPress={600}
                 >
-                  <View style={styles.todoTextRow}>
-                    {/* 左側勾勾區域 */}
-                    <TouchableOpacity 
-                      onPress={() => handleToggleComplete(item)}
-                      style={{ marginRight: 12 }}
-                    >
-                      {isSelectMode ? (
-                        /* 🔴 複選選取框樣式 */
-                        <View style={[styles.selectCheckbox, isSelected && styles.selectCheckboxActive]}>
-                          {isSelected && <Check color="#FFF" size={14} strokeWidth={3} />}
-                        </View>
-                      ) : (
-                        /* 普通任務狀態勾勾 */
-                        <View style={[styles.customCheckbox, item.completed && styles.customCheckboxChecked]}>
-                          {item.completed && <Check color="#FFF" size={14} strokeWidth={3} />}
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                    
-                    <Text style={[
-                      styles.todoText, 
-                      item.completed && !isSelectMode && styles.todoCompleted,
-                      isSelectMode && isSelected && { color: "#EC7424" }
-                    ]}>
-                      {item.text}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* 下方：固定在最底部的輸入區（在複選模式下暫時鎖定/隱藏） */}
-          {!isSelectMode && (
-            <View style={styles.bottomInputContainer}>
-              <View style={styles.inputRow}>
-                <TextInput
-                  ref={todoInputRef}
-                  style={[styles.pixelInput, editingTodo && styles.pixelInputEditing]}
-                  placeholder={editingTodo ? "正在修改裝備..." : "新增裝備..."}
-                  value={newTodo}
-                  onChangeText={setNewTodo}
-                  returnKeyType="done"
-                  onSubmitEditing={handleTodoSubmit}
-                />
-                <TouchableOpacity 
-                  style={[styles.addBtn, editingTodo && { backgroundColor: "#3498DB" }]} 
-                  onPress={handleTodoSubmit}
-                >
-                  {editingTodo ? <Check color="#FFF" size={24} /> : <Plus color="#FFF" size={24} />}
-                </TouchableOpacity>
-                
-                {editingTodo && (
-                  <TouchableOpacity 
-                    style={[styles.addBtn, { backgroundColor: "#95A5A6" }]} 
-                    onPress={() => {
-                      setEditingTodo(null);
-                      setNewTodo("");
-                      Keyboard.dismiss();
-                    }}
-                  >
-                    <X color="#FFF" size={24} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          )}
-        </KeyboardAvoidingView>
-      ) : (
-        <View style={styles.content}>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.docGrid}>
-            {documents.map((doc) => (
-              <TouchableOpacity
-                key={doc.id}
-                style={styles.polaroidCardContainer}
-                activeOpacity={0.9}
-                onPress={() => openEditModal(doc)}
-                onLongPress={() => handleLongPressDoc(doc)}
-                delayLongPress={600}
-              >
-                <View style={styles.polaroidShadow} />
-                <View style={styles.polaroidCard}>
-                  <View style={styles.imageContainer}>
-                    <Image source={{ uri: doc.uri }} style={styles.polaroidImage} />
-                  </View>
-                  <View style={styles.polaroidBottom}>
-                    <Text style={styles.polaroidTitle} numberOfLines={1}>{doc.title}</Text>
-                    <View style={styles.polaroidFooterRow}>
-                      {doc.note && doc.note.trim() ? (
-                        <Text style={styles.polaroidNote} numberOfLines={1}>{doc.note}</Text>
-                      ) : (
-                        <View style={styles.polaroidNoteBlank} />
-                      )}
+                  <View style={styles.polaroidShadow} />
+                  <View style={styles.polaroidCard}>
+                    <View style={styles.imageContainer}>
+                      <Image source={{ uri: doc.uri }} style={styles.polaroidImage} />
+                    </View>
+                    <View style={styles.polaroidBottom}>
+                      <Text style={styles.polaroidTitle} numberOfLines={1}>{doc.title}</Text>
+                      <View style={styles.polaroidFooterRow}>
+                        {doc.note && doc.note.trim() ? (
+                          <Text style={styles.polaroidNote} numberOfLines={1}>{doc.note}</Text>
+                        ) : (
+                          <View style={styles.polaroidNoteBlank} />
+                        )}
+                      </View>
                     </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-          <TouchableOpacity style={styles.fab} onPress={openAddModal}>
-            <Plus color="#FFF" size={32} />
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.fab} onPress={openAddModal}>
+              <Plus color="#FFF" size={32} />
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
+      </ScrollView>
+
 
       {/* 圖片放大檢視 Modal */}
       <Modal visible={!!selectedImage} transparent animationType="fade">
@@ -487,11 +514,11 @@ export default function BackpackScreen() {
               <Text style={styles.alertTitle}>
                 {isSelectMode ? "批量丟棄裝備" : "刪除證件"}
               </Text>
-              
+
               <Image source={require("../../img/ad_line.png")} style={styles.modalSeparator} />
-              
+
               <Text style={styles.alertMessage}>
-                {isSelectMode 
+                {isSelectMode
                   ? `確定要將選中的 ${selectedTodoIds.length} 個裝備從背包中集體丟棄嗎？`
                   : `確定要將「${deletingDoc?.title}」從背包中丟棄嗎？`}
               </Text>
@@ -521,7 +548,7 @@ export default function BackpackScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -566,17 +593,17 @@ const styles = StyleSheet.create({
   pixelInput: { flex: 1, backgroundColor: "#FFF", borderWidth: 2, borderColor: "#4A342E", padding: 10, fontSize: 16, color: "#4A342E", fontWeight: "bold" },
   pixelInputEditing: { borderColor: "#3498DB", backgroundColor: "#F4F9FD" },
   addBtn: { backgroundColor: "#F39C12", paddingHorizontal: 15, borderWidth: 2, borderColor: "#4A342E", justifyContent: "center", alignItems: "center" },
-  
+
   todoItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFF", padding: 15, borderWidth: 2, borderColor: "#4A342E", marginBottom: 10 },
   todoItemEditing: { borderColor: "#3498DB", borderWidth: 2 },
   todoItemCheckedModal: { borderColor: "#EC7424", backgroundColor: "#FFFDF9" }, // 選中時的復古粗橘框
   todoTextRow: { flexDirection: "row", alignItems: "center", flex: 1 },
   todoText: { fontSize: 16, color: "#4A342E", fontWeight: "bold", flex: 1 },
   todoCompleted: { textDecorationLine: "line-through", color: "#BDC3C7" },
-  
+
   customCheckbox: { width: 22, height: 22, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#FFF", justifyContent: "center", alignItems: "center" },
   customCheckboxChecked: { backgroundColor: "#4CAF50" },
-  
+
   // 🔴 複選選取框樣式（亮橘像素風）
   selectCheckbox: { width: 22, height: 22, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#FFF", justifyContent: "center", alignItems: "center" },
   selectCheckboxActive: { backgroundColor: "#EC7424" },

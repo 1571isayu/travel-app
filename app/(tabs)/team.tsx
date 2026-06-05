@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useGlobalSearchParams } from "expo-router";
 import {
   arrayRemove,
   doc,
@@ -76,7 +76,7 @@ const TUTORIAL_STEPS = [
 // 主元件
 // ─────────────────────────────────────────────
 export default function TeamScreen() {
-  const { id, name } = useLocalSearchParams();
+  const { id, name } = useGlobalSearchParams();
 
   // 本機個人資料（永遠以這份為準顯示自己頭像）
   const [myName, setMyName] = useState("冒險者");
@@ -99,7 +99,7 @@ export default function TeamScreen() {
         if (profile.name) setMyName(profile.name);
         // 🌟 修正點：確保正確取得 setup 中儲存的項目 (有時可能叫 avatar 或 characterId)
         const charId = profile.characterId || profile.avatar || null;
-        setMyAvatar(charId); 
+        setMyAvatar(charId);
         if (profile.uid) setMyUid(profile.uid);
       }
     } catch (e) {
@@ -114,33 +114,48 @@ export default function TeamScreen() {
   );
 
   // ── Firebase 即時監聽隊伍成員，並去 users/{uid} 抓最新名稱與頭像 ──
+  // ── Firebase 即時監聽隊伍成員，並去 users/{uid} 抓最新名稱與頭像 ──
   useEffect(() => {
     if (!id) return;
     const unsub = onSnapshot(
       doc(db, "adventures", id as string),
       async (snap) => {
-        if (!snap.exists()) return;
+        if (!snap.exists()) {
+          console.log("⚠️ 找不到該冒險的資料！");
+          return;
+        }
+
         const rawMembers: any[] = snap.data().members || [];
+        console.log("🔍 從 Firebase 抓到的原始成員資料:", rawMembers);
 
         const enriched = await Promise.all(
           rawMembers.map(async (m) => {
-            if (!m.uid) return m;
+            // 🔴 關鍵防呆：判斷 Firebase 存的是單純的字串(UID) 還是 物件({uid: ...})
+            const memberUid = typeof m === "string" ? m : m.uid;
+
+            if (!memberUid) return m;
+
             try {
-              const userSnap = await getDoc(doc(db, "users", m.uid));
+              const userSnap = await getDoc(doc(db, "users", memberUid));
               if (userSnap.exists()) {
                 const u = userSnap.data();
                 return {
-                  ...m,
+                  ...(typeof m === "object" ? m : { uid: memberUid }),
+                  uid: memberUid, // 確保物件一定有 uid 屬性，畫面才抓得到
                   name: u.displayName || u.name || m.name || "冒險者",
-                  characterId: u.characterId || u.avatar || null, // 🌟 兼顧兩種欄位命名命名
+                  characterId: u.characterId || u.avatar || null,
                 };
               }
             } catch (e) {
-              console.warn("抓取成員資料失敗:", m.uid, e);
+              console.warn("抓取成員資料失敗:", memberUid, e);
             }
-            return m;
+
+            // 如果 users 裡找不到這個人，也要確保回傳格式正確的物件
+            return typeof m === "object" ? m : { uid: memberUid };
           }),
         );
+
+        console.log("✅ 補強後的成員資料:", enriched);
         setMembers(enriched);
       },
     );
@@ -217,7 +232,7 @@ export default function TeamScreen() {
           />
         ) : (
           <View style={[styles.memberAvatarPlaceholder, { borderColor }]}>
-             <Text style={styles.placeholderQuestion}>?</Text>
+            <Text style={styles.placeholderQuestion}>?</Text>
           </View>
         )}
         <View style={styles.memberInfo}>
@@ -291,6 +306,7 @@ export default function TeamScreen() {
         </View>
 
         {/* ── TEAM MEMBER 卡片 ── */}
+        {/* ── TEAM MEMBER 卡片 ── */}
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle}>TEAM MEMBER</Text>
@@ -298,6 +314,8 @@ export default function TeamScreen() {
               <Text style={styles.inviteIcon}>👤+</Text>
             </TouchableOpacity>
           </View>
+
+          
 
           {members.length === 0 ? (
             <Text style={styles.emptyMember}>尚無成員資料</Text>
