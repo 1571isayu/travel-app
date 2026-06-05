@@ -5,10 +5,16 @@
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "lint": "expo lint",
+    "prebuild": "expo prebuild",
+    "prebuild:clean": "expo prebuild --clean",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "android:start": "expo start --android",
+    "ios:start": "expo start --ios",
+    "run:android": "expo run:android",
+    "run:ios": "expo run:ios",
+    "device:android": "expo run:android --device",
+    "device:ios": "expo run:ios --device"
   },
   "dependencies": {
     "@expo-google-fonts/press-start-2p": "^0.4.1",
