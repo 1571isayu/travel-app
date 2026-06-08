@@ -14,7 +14,9 @@
     "run:android": "expo run:android",
     "run:ios": "expo run:ios",
     "device:android": "expo run:android --device",
-    "device:ios": "expo run:ios --device"
+    "device:ios": "expo run:ios --device",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@expo-google-fonts/press-start-2p": "^0.4.1",
