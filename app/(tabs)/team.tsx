@@ -219,7 +219,7 @@ export default function TeamScreen() {
   const renderMember = (m: any, idx: number) => {
     const isSelf = m.uid === myUid;
     const displayName = isSelf ? myName : m.name || "冒險者";
-    const borderColor = m.color || "#5E433B";
+    const borderColor = COLORS.line;
 
     // 🌟 修正點：如果是自己，拿最新的 myAvatar 狀態；如果是隊友，拿補強後的 m.characterId
     const characterId = isSelf ? myAvatar : m.characterId;
@@ -287,7 +287,7 @@ export default function TeamScreen() {
             }
           >
             <View style={styles.menuLeft}>
-              <Text style={styles.menuIcon}>✏️</Text>
+              <Image source={require("../../img/icon_edit.png")} style={{ height: 16, width: 16 }} resizeMode="contain" />
               <Text style={styles.menuText}>編輯個人檔案</Text>
             </View>
             <Text style={styles.menuChevron}>›</Text>
@@ -300,7 +300,7 @@ export default function TeamScreen() {
             onPress={() => setTutorialVisible(true)}
           >
             <View style={styles.menuLeft}>
-              <Text style={styles.menuIcon}>❓</Text>
+              <Image source={require("../../img/icon_help.png")} style={{ height: 18, width: 18 }} resizeMode="contain" />
               <Text style={styles.menuText}>使用教學</Text>
             </View>
             <Text style={styles.menuChevron}>›</Text>
@@ -313,7 +313,7 @@ export default function TeamScreen() {
           <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle}>TEAM MEMBER</Text>
             <TouchableOpacity onPress={onShare} style={styles.inviteBtn}>
-              <Text style={styles.inviteIcon}>👤+</Text>
+              <Image source={require("../../img/icon_invite.png")} style={{ height: 20, width: 20 }} resizeMode="contain" />
             </TouchableOpacity>
           </View>
 
@@ -331,7 +331,7 @@ export default function TeamScreen() {
             style={styles.leaveRow}
             onPress={() => setLeaveConfirmVisible(true)}
           >
-            <Text style={styles.leaveIcon}>↪</Text>
+            <Image source={require("../../img/icon_exit.png")} style={{ height: 16, width: 16 }} resizeMode="contain" />
             <Text style={styles.leaveText}>離開隊伍</Text>
           </TouchableOpacity>
         </View>
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: BROWN,
     overflow: "hidden",
-    backgroundColor: "#D7CCC8",
+    backgroundColor: COLORS.bg2,
     shadowColor: BROWN,
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 1,
@@ -483,15 +483,15 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    borderWidth: 3,
-    backgroundColor: "#D7CCC8",
+    borderWidth: 2,
+    backgroundColor: COLORS.bg2,
   },
   memberAvatarPlaceholder: {
     width: 52,
     height: 52,
     borderRadius: 26,
     borderWidth: 3,
-    backgroundColor: "#D7CCC8",
+    backgroundColor: COLORS.bg2,
     justifyContent: "center",
     alignItems: "center",
   },

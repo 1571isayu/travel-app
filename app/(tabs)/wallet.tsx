@@ -12,7 +12,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react-native";
+import { ChevronDown, ChevronRight } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,6 +24,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -160,10 +161,11 @@ function Avatar({ member, size = 44 }: { member: Member; size?: number }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function WalletScreen() {
+  const [selectedDebt, setSelectedDebt] = useState<DebtEntry | null>(null);
   const { id: paramId } = useLocalSearchParams();
   const horizontalScrollRef = useRef<ScrollView>(null);
 
-  const [activeTab, setActiveTab] = useState<"debt" | "details">("details");
+  const [activeTab, setActiveTab] = useState<"分帳關係" | "交易紀錄">("交易紀錄");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -207,17 +209,17 @@ export default function WalletScreen() {
   }, [paramId]);
 
   // --- 滑動切換控制 ---
-  const handleTabPress = (tab: "debt" | "details") => {
+  const handleTabPress = (tab: "分帳關係" | "交易紀錄") => {
     setActiveTab(tab);
     horizontalScrollRef.current?.scrollTo({
-      x: tab === "debt" ? 0 : SCREEN_WIDTH,
+      x: tab === "分帳關係" ? 0 : SCREEN_WIDTH,
       animated: true,
     });
   };
 
   const handleScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = e.nativeEvent.contentOffset.x;
-    setActiveTab(offsetX < SCREEN_WIDTH / 2 ? "debt" : "details");
+    setActiveTab(offsetX < SCREEN_WIDTH / 2 ? "分帳關係" : "交易紀錄");
   };
 
   useEffect(() => {
@@ -280,16 +282,26 @@ export default function WalletScreen() {
     <View style={mainStyles.container}>
       {/* ── Tab Bar ── */}
       <View style={mainStyles.tabRow}>
-        {(["debt", "details"] as const).map((tab) => (
-          <TouchableOpacity
+        {(["分帳關係", "交易紀錄"] as const).map((tab) => (
+          <Pressable
             key={tab}
-            style={[mainStyles.tab, activeTab === tab && mainStyles.tabActive]}
+            style={{ flex: 1 }} // 讓兩個按鈕均分寬度
             onPress={() => handleTabPress(tab)}
           >
-            <Text style={[mainStyles.tabText, activeTab === tab && mainStyles.tabTextActive]}>
-              {tab.toUpperCase()}
-            </Text>
-          </TouchableOpacity>
+            {({ pressed }) => (
+              <View
+                style={[
+                  mainStyles.tab,
+                  activeTab === tab && mainStyles.tabActive,
+                  pressed ? mainStyles.btnPressed : mainStyles.btnShadow // 🌟 加入按壓動態陰影
+                ]}
+              >
+                <Text style={[mainStyles.tabText, activeTab === tab && mainStyles.tabTextActive]}>
+                  {tab.toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </Pressable>
         ))}
       </View>
 
@@ -309,7 +321,7 @@ export default function WalletScreen() {
         {/* ── DEBT Tab ── */}
         <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
           <ScrollView contentContainerStyle={mainStyles.scrollContent}>
-            {activeTab === "debt" && (
+            {activeTab === "分帳關係" && (
               <ScrollView
                 style={mainStyles.scroll}
                 showsVerticalScrollIndicator={false}
@@ -320,34 +332,45 @@ export default function WalletScreen() {
                     <Text style={mainStyles.emptyTitle}>🎉 目前沒有待結清的欠款</Text>
                   </View>
                 ) : (
+
                   debts.map((debt, i) => {
                     const from = getMember(debt.fromId);
                     const to = getMember(debt.toId);
                     return (
-                      <View key={i} style={mainStyles.debtCard}>
-                        <View style={mainStyles.debtPerson}>
-                          <Avatar member={from} size={54} />
-                          <Text style={mainStyles.debtName} numberOfLines={1}>
-                            {from.name}
-                          </Text>
-                        </View>
+                      /* 🌟 改用 Pressable 處理陰影與按壓效果 */
+                      <Pressable
+                        key={i}
+                        onPress={() => setSelectedDebt(debt)}
+                        delayLongPress={600}
+                      >
+                        {({ pressed }) => (
+                          <View style={[
+                            mainStyles.debtCard, // 這裡原本的卡片樣式
+                            // 🌟 按下時下沉，沒按時顯示陰影
+                            pressed ? mainStyles.txCardPressed : mainStyles.txCardShadow
+                          ]}>
+                            <View style={mainStyles.debtPerson}>
+                              <Avatar member={from} size={54} />
+                              <Text style={mainStyles.debtName} numberOfLines={1}>{from.name}</Text>
+                            </View>
 
-                        <View style={mainStyles.debtMiddle}>
-                          <Text style={mainStyles.debtAmount}>
-                            ${`NT${debt.amount}`}
-                          </Text>
-                          <ChevronRight color="#5E433B" size={20} />
-                        </View>
+                            <View style={mainStyles.debtMiddle}>
+                              <Text style={mainStyles.debtAmount}>
+                                ${`NT${debt.amount}`}
+                              </Text>
+                              <ChevronRight color="#5E433B" size={20} />
+                            </View>
 
-                        <View style={mainStyles.debtPerson}>
-                          <Avatar member={to} size={54} />
-                          <Text style={mainStyles.debtName} numberOfLines={1}>
-                            {to.name}
-                          </Text>
-                        </View>
-                      </View>
+                            <View style={mainStyles.debtPerson}>
+                              <Avatar member={to} size={54} />
+                              <Text style={mainStyles.debtName} numberOfLines={1}>{to.name}</Text>
+                            </View>
+                          </View>
+                        )}
+                      </Pressable>
                     );
                   })
+
                 )}
               </ScrollView>
             )}
@@ -356,7 +379,7 @@ export default function WalletScreen() {
         {/* ── DETAILS Tab ── */}
         <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
           <ScrollView contentContainerStyle={mainStyles.scrollContent}>
-            {activeTab === "details" && (
+            {activeTab === "交易紀錄" && (
               <ScrollView
                 style={mainStyles.scroll}
                 showsVerticalScrollIndicator={false}
@@ -370,42 +393,47 @@ export default function WalletScreen() {
                 ) : (
                   transactions.map((tx) => {
                     const payer = getMember(tx.payerId);
-                    const displayAmt =
-                      tx.currency !== "TWD"
-                        ? `$${tx.currency}${tx.amount}`
-                        : `$NT${tx.twd}`;
+                    const displayAmt = tx.currency !== "TWD" ? `$${tx.currency}${tx.amount}` : `$NT${tx.twd}`;
+
                     return (
-                      /* 將原包覆外層改為具備手勢辨識的按鈕 */
-                      <TouchableOpacity
+                      /* 🌟 改用 Pressable 來處理靜態陰影與按壓下沉效果 */
+                      <Pressable
                         key={tx.id}
-                        style={mainStyles.txCard}
-                        activeOpacity={0.85}
                         onPress={() => handlePressTx(tx)}
                         onLongPress={() => handleLongPressTx(tx)}
                         delayLongPress={600}
                       >
-                        {/* 左：付款人頭像 + 名字 */}
-                        <View style={mainStyles.txLeft}>
-                          <Avatar member={payer} size={46} />
-                          <Text style={mainStyles.txPayerName} numberOfLines={1}>
-                            {payer.name}
-                          </Text>
-                        </View>
+                        {({ pressed }) => (
+                          <View style={[
+                            mainStyles.txCard,
+                            // 🌟 按下時應用下沉樣式，沒按時應用陰影樣式
+                            pressed ? mainStyles.txCardPressed : mainStyles.txCardShadow
+                          ]}>
+                            {/* 左：付款人頭像 + 名字 */}
+                            <View style={mainStyles.txLeft}>
+                              <Avatar member={payer} size={46} />
+                              <Text style={mainStyles.txPayerName} numberOfLines={1}>
+                                {payer.name}
+                              </Text>
+                            </View>
 
-                        {/* 中：品項 + 日期 */}
-                        <View style={mainStyles.txMiddle}>
-                          <Text style={mainStyles.txItem} numberOfLines={1}>
-                            {tx.item || "未命名"}
-                          </Text>
-                          <Text style={mainStyles.txDate}>{tx.datetime}</Text>
-                        </View>
+                            {/* 中：品項 + 日期 */}
+                            <View style={mainStyles.txMiddle}>
+                              <Text style={mainStyles.txItem} numberOfLines={1}>
+                                {tx.item || "未命名"}
+                              </Text>
+                              <Text style={mainStyles.txDate}>
+                                {tx.datetime.split(" ")[0]}
+                              </Text>
+                            </View>
 
-                        {/* 右：金額 + 硬幣 */}
-                        <View style={mainStyles.txRight}>
-                          <Text style={mainStyles.txAmount}>{displayAmt}</Text>
-                          <Text style={mainStyles.txCoin}>🪙</Text>
-                        </View>
-                      </TouchableOpacity>
+                            {/* 右：金額 + 硬幣 */}
+                            <View style={mainStyles.txRight}>
+                              <Text style={mainStyles.txAmount}>{displayAmt}</Text>
+                            </View>
+                          </View>
+                        )}
+                      </Pressable>
                     );
                   })
                 )}
@@ -415,17 +443,30 @@ export default function WalletScreen() {
         </View>
 
       </ScrollView>
-      {/* ── FAB 新增按鈕 ── */}
-      <TouchableOpacity
-        style={mainStyles.fab}
-        onPress={() => {
-          setEditingTransaction(null); // 明確清除編輯目標狀態，切換至純新增
-          setShowFormModal(true);
-        }}
-      >
-        <Plus color="#FFF" size={28} />
-      </TouchableOpacity>
-
+      {/* ── FAB 新增按鈕 (同步 Adventure 風格的雙圖片切換) ── */}
+      <View style={mainStyles.fabContainer}>
+        <Pressable
+          onPress={() => {
+            setEditingTransaction(null); // 明確清除編輯目標狀態，切換至純新增
+            setShowFormModal(true);
+          }}
+        >
+          {({ pressed }) => (
+            <View style={pressed ? { transform: [{ translateY: 2 }] } : {}}>
+              {/* 預設狀態的圖片 */}
+              <Image
+                source={require("../../img/button_plus.png")}
+                style={[mainStyles.fabIcon, { opacity: pressed ? 0 : 1 }]}
+              />
+              {/* 按下狀態的圖片 (絕對定位疊在上面) */}
+              <Image
+                source={require("../../img/button_plus_pressed.png")}
+                style={[mainStyles.fabIcon, mainStyles.fabIconAbsolute, { opacity: pressed ? 1 : 0 }]}
+              />
+            </View>
+          )}
+        </Pressable>
+      </View>
       {/* ── 表單新增 / 編輯彈出視窗 ── */}
       {showFormModal && (
         <TransactionFormModal
@@ -441,50 +482,86 @@ export default function WalletScreen() {
         />
       )}
 
-      {/* ── 🔴 客製化 Y2K 粗邊風格「記帳丟棄框」 ── */}
+      {/* 刪除確認 Modal */}
       <Modal visible={isDeleteModalVisible} transparent animationType="fade">
-        <View style={mainStyles.alertOverlay}>
-          <View style={mainStyles.alertCardContainer}>
-            <View style={mainStyles.alertCardShadow} />
-            <View style={mainStyles.alertCard}>
-              <Text style={mainStyles.alertTitle}>刪除記帳紀錄</Text>
+        <View style={mainStyles.modalOverlay}>
+          <View style={[mainStyles.modalCard, { alignItems: "center", height: "auto" }]}>
+            <Text style={[mainStyles.pixelTitleInput, { fontSize: 18 }]}>DELETE?</Text>
+            <Text style={{ color: "#8D6E63", fontWeight: "bold" }}>刪除後此行程無法復原！</Text>
+            {/* 底部按鈕列：cancel & save */}
+            <View style={mainStyles.modalPageBtnRow}>
+              <Pressable style={{ flex: 1 }} onPress={() => setIsDeleteModalVisible(false)}>
+                {({ pressed }) => (
+                  <View style={[mainStyles.pageCustomBtn, mainStyles.pageCancelBtn, pressed ? mainStyles.pageBtnPressed : mainStyles.pageBtnShadow]}>
+                    <Text style={mainStyles.pageCancelBtnText}>cancel</Text>
+                  </View>
+                )}
+              </Pressable>
 
-              <Image
-                source={require("../../img/ad_line.png")}
-                style={addStyles.modalSeparator}
-              />
-
-              <Text style={mainStyles.alertMessage}>
-                確定要把「{deletingTransaction?.item || "未命名"}」的這筆開銷從帳本中撕掉丟棄嗎？
-              </Text>
-
-              <View style={addStyles.modalBtnRow}>
-                <View style={addStyles.modalBtnContainer}>
-                  <View style={[addStyles.modalBtnShadow, { backgroundColor: "#8A9A84" }]} />
-                  <TouchableOpacity
-                    style={[addStyles.modalBtn, { backgroundColor: "#C2D1BC" }]}
-                    onPress={() => {
-                      setIsDeleteModalVisible(false);
-                      setDeletingTransaction(null);
-                    }}
-                  >
-                    <Text style={addStyles.modalBtnText}>取消</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={addStyles.modalBtnContainer}>
-                  <View style={[addStyles.modalBtnShadow, { backgroundColor: "#9E4714" }]} />
-                  <TouchableOpacity
-                    style={[addStyles.modalBtn, { backgroundColor: "#EC7424" }]}
-                    onPress={confirmDeleteTx}
-                  >
-                    <Text style={[addStyles.modalBtnText, { color: "#FFF" }]}>
-                      丟棄
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <Pressable style={{ flex: 1 }} onPress={confirmDeleteTx}>
+                {({ pressed }) => (
+                  <View style={[mainStyles.pageCustomBtn, mainStyles.pageSaveBtn, pressed ? mainStyles.pageBtnPressed : mainStyles.pageBtnShadow]}>
+                    <Text style={mainStyles.pageCancelBtnText}>OK</Text>
+                  </View>
+                )}
+              </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+      {/* ── 債務細項 Modal ── */}
+      <Modal visible={!!selectedDebt} transparent animationType="fade">
+        <View style={mainStyles.modalOverlay}>
+          <View style={mainStyles.modalCard}>
+            <Text style={mainStyles.pixelTitleInput}>DEBT DETAILS</Text>
+            <Text style={{ color: "#8D6E63", fontWeight: "bold", textAlign: "center", marginBottom: 15 }}>
+              {selectedDebt
+                ? `${getMember(selectedDebt.fromId).name} 需支付 ${getMember(selectedDebt.toId).name}`
+                : ""}
+            </Text>
+
+            {/* 細項列表 */}
+            <ScrollView style={{ width: "100%", maxHeight: 300 }}>
+              {transactions
+                .filter(tx => tx.payerId === selectedDebt?.toId && tx.splits.some(s => s.memberId === selectedDebt?.fromId))
+                .map(tx => {
+                  const split = tx.splits.find(s => s.memberId === selectedDebt?.fromId);
+
+                  // 🌟 計算這筆交易對應到該成員的「原幣值」比例
+                  // 如果這筆消費是 1000 日圓，且該成員分擔 50%，我們會顯示 500 日圓
+                  const originalAmt = tx.currency !== "TWD"
+                    ? Math.round((split?.amount ?? 0) / (tx.twd / tx.amount))
+                    : split?.amount;
+
+                  return (
+                    <View key={tx.id} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1, borderColor: "#E8DDD5" }}>
+                      <View>
+                        <Text style={{ color: "#5E433B", fontWeight: "bold" }}>{tx.item}</Text>
+                        {/* 顯示原始幣值日期 */}
+                        <Text style={{ color: "#8D6E63", fontSize: 11 }}>{tx.datetime.split(" ")[0]}</Text>
+                      </View>
+
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={{ color: "#EC7424", fontWeight: "bold" }}>
+                          {/* 如果不是 TWD，同時顯示原幣值與折算後的 TWD */}
+                          {tx.currency !== "TWD"
+                            ? `${originalAmt} ${tx.currency} (NT$ ${split?.amount})`
+                            : `NT$ ${split?.amount}`}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+            </ScrollView>
+
+            {/* 關閉按鈕 */}
+            <Pressable style={{ width: "100%", marginTop: 20 }} onPress={() => setSelectedDebt(null)}>
+              {({ pressed }) => (
+                <View style={[mainStyles.pageCustomBtn, mainStyles.pageSaveBtn, pressed ? mainStyles.pageBtnPressed : mainStyles.pageBtnShadow]}>
+                  <Text style={mainStyles.pageCancelBtnText}>CLOSE</Text>
+                </View>
+              )}
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -788,7 +865,11 @@ function SplitScreenView({
     <View style={splitStyles.container}>
       <View style={splitStyles.header}>
         <TouchableOpacity onPress={onClose} style={splitStyles.backBtn}>
-          <Text style={splitStyles.backText}>{"<"}</Text>
+          <Image
+            source={require("../../img/icon_chevronLeft.png")}
+            style={{ height: 20, aspectRatio: 1 }}
+            resizeMode="contain"
+          />
         </TouchableOpacity>
         <Text style={splitStyles.title}>替誰付錢</Text>
         <View style={{ width: 36 }} />
@@ -806,7 +887,6 @@ function SplitScreenView({
             style={[splitStyles.tab, mode === t.key && splitStyles.tabActive]}
             onPress={() => setMode(t.key)}
           >
-            <Text style={splitStyles.tabEmoji}>{t.emoji}</Text>
             <Text
               style={[
                 splitStyles.tabLabel,
@@ -946,8 +1026,7 @@ function TransactionFormModal({
   const [currency, setCurrency] = useState("TWD");
   const [amountStr, setAmountStr] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [datetime, setDatetime] = useState(fmtDatetime(new Date()));
-  const [item, setItem] = useState("");
+  const [datetime, setDatetime] = useState(fmtDate(new Date())); const [item, setItem] = useState("");
   const [payerId, setPayerId] = useState(members[0]?.id ?? "");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -1059,9 +1138,12 @@ function TransactionFormModal({
   };
 
   const payer = members.find((m) => m.id === payerId);
-
+  {/*加號打開ㄉ視窗*/ }
   return (
-    <Modal visible={visible} animationType="slide">
+    <Modal
+      visible={visible}
+      animationType="slide"
+    >
       {showSplitScreen ? (
         <SplitScreenView
           members={members}
@@ -1077,7 +1159,8 @@ function TransactionFormModal({
         <View style={addStyles.container}>
           <View style={addStyles.header}>
             <TouchableOpacity onPress={onClose} style={addStyles.backBtn}>
-              <Text style={addStyles.backText}>{"<"}</Text>
+              <Image source={require("../../img/icon_chevronLeft.png")} style={{ height: 16, width: 16 }} resizeMode="contain" />
+
             </TouchableOpacity>
             <View style={addStyles.amountRow}>
               <TouchableOpacity
@@ -1094,7 +1177,7 @@ function TransactionFormModal({
                 onChangeText={setAmountStr}
                 keyboardType="decimal-pad"
                 placeholder="0"
-                placeholderTextColor="#C8B8A2"
+                placeholderTextColor={COLORS.line2}
               />
               {currency !== "TWD" && twdTotal > 0 && (
                 <Text style={addStyles.convertedHint}>≈ NT${twdTotal}</Text>
@@ -1127,7 +1210,7 @@ function TransactionFormModal({
                 value={item}
                 onChangeText={setItem}
                 placeholder="請輸入名稱"
-                placeholderTextColor="#C8B8A2"
+                placeholderTextColor={COLORS.line2}
               />
 
               <Text style={addStyles.label}>付款人</Text>
@@ -1170,19 +1253,24 @@ function TransactionFormModal({
               </TouchableOpacity>
 
               <Text style={addStyles.label}>圖片</Text>
-              <TouchableOpacity
-                style={addStyles.imagePicker}
-                onPress={pickImage}
-              >
-                {imageUri ? (
+              {!imageUri ? (
+                // 狀況 A：還沒有圖片時顯示「點此上傳圖片+」
+                <TouchableOpacity style={addStyles.designAddImageFrame} onPress={pickImage}>
+                  <Text style={addStyles.designAddImageFrameText}>點此上傳圖片+</Text>
+                </TouchableOpacity>
+              ) : (
+                // 狀況 B：有圖片時，使用 contain 完整顯示
+                <TouchableOpacity
+                  style={addStyles.designAddImageFrameActive}
+                  onPress={pickImage}
+                  activeOpacity={0.9}
+                >
                   <Image
                     source={{ uri: imageUri }}
-                    style={addStyles.imagePreview}
-                    resizeMode="cover"
+                    style={{ width: "100%", height: "100%", resizeMode: "contain" }}
                   />
-                ) : null}
-              </TouchableOpacity>
-
+                </TouchableOpacity>
+              )}
               <Text style={addStyles.label}>備註</Text>
               <TextInput
                 style={[
@@ -1192,21 +1280,18 @@ function TransactionFormModal({
                 value={note}
                 onChangeText={setNote}
                 placeholder="補充備註..."
-                placeholderTextColor="#C8B8A2"
+                placeholderTextColor={COLORS.line2}
                 multiline
               />
 
-              <TouchableOpacity
-                style={addStyles.saveBtn}
-                onPress={handleSave}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={addStyles.saveBtnText}>save</Text>
+
+              <Pressable style={{ flex: 1, paddingTop: 20 }} onPress={handleSave}>
+                {({ pressed }) => (
+                  <View style={[addStyles.pageCustomBtn, addStyles.pageSaveBtn, pressed ? addStyles.pageBtnPressed : addStyles.pageBtnShadow]}>
+                    <Text style={addStyles.pageCancelBtnText}>SAVE</Text>
+                  </View>
                 )}
-              </TouchableOpacity>
+              </Pressable>
 
               <View style={{ height: 50 }} />
             </ScrollView>
@@ -1276,7 +1361,7 @@ function TransactionFormModal({
             selectedDate={selectedDate}
             onConfirm={(date) => {
               setSelectedDate(date);
-              setDatetime(fmtDatetime(date));
+              setDatetime(fmtDate(date)); // 👈 這裡把 fmtDatetime 改成 fmtDate
               setShowCalendar(false);
             }}
             onClose={() => setShowCalendar(false)}
@@ -1293,10 +1378,30 @@ const mainStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, position: "relative" },
   loading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FDFBF0" },
   tabRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 10 },
-  tab: { flex: 1, alignItems: "center", paddingVertical: 12, borderWidth: 2, borderColor: "#5E433B", backgroundColor: "#FDFBF0" },
-  tabActive: { backgroundColor: "#5E433B" },
+  // 🌟 確保 mainStyles 裡面有這組核心按壓陰影
+  btnShadow: {
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+  },
+  btnPressed: {
+    transform: [{ translateY: 2 }],
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+  },
+
+  // 🌟 確保 tab 沒有寫死 flex: 1 (因為已經交給外層的 Pressable 分配了)
+  tab: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    backgroundColor: "#FFF"
+  }, tabActive: { backgroundColor: COLORS.line2 },
   tabText: { fontSize: 14, fontWeight: "bold", color: "#5E433B" },
-  tabTextActive: { color: "#FDFBF0" },
+  tabTextActive: { color: COLORS.bg2 },
   separator: { width: "100%", height: 10, resizeMode: "contain", marginBottom: 4 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 100 },
@@ -1308,7 +1413,19 @@ const mainStyles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#5E433B",
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 12, // 保持間距
+  },
+  // 🌟 靜態陰影：右邊框 2，底邊框 4
+  txCardShadow: {
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+  },
+
+  // 🌟 按下下沉：往 Y 軸移動 2，底邊框縮減為 2
+  txCardPressed: {
+    transform: [{ translateY: 2 }],
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
   },
   txLeft: { alignItems: "center", width: 58, marginRight: 10 },
   txPayerName: { fontSize: 10, color: "#5E433B", fontWeight: "bold", marginTop: 4, textAlign: "center" },
@@ -1329,24 +1446,21 @@ const mainStyles = StyleSheet.create({
   empty: { alignItems: "center", paddingTop: 80 },
   emptyTitle: { fontSize: 16, fontWeight: "bold", color: "#5E433B" },
   emptySub: { fontSize: 13, color: "#8D6E63", marginTop: 8 },
-  fab: {
+  // 🌟 將原本的 fab 刪掉，替換成這三個：
+  fabContainer: {
     position: "absolute",
     right: 20,
-    bottom: 30,
-    width: 60,
+    bottom: 30
+  },
+  fabIcon: {
+    width: 60,  // 👈 可以依據你的畫面比例微調 (例如 60 或 65)
     height: 60,
-    borderRadius: 30,
-    backgroundColor: "#EC7424",
-    borderWidth: 3,
-    borderColor: "#5E433B",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 10,
-    zIndex: 100,
-    shadowColor: "#5E433B",
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
+    resizeMode: "contain"
+  },
+  fabIconAbsolute: {
+    position: "absolute",
+    top: -2,
+    left: 0
   },
 
   // 🔴 追加：客製化設計款彈窗樣式
@@ -1390,31 +1504,110 @@ const mainStyles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 20,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    width: "90%",
+    backgroundColor: "#FFFDF9",
+    borderWidth: 3,
+    borderColor: "#5E433B",
+    padding: 20,
+    borderRadius: 10,
+    height: 550,
+    overflow: "hidden",
+  },
+  pixelTitleInput: {
+    fontFamily: "PressStart2P",
+    fontSize: 16,
+    color: "#5E433B",
+    textAlign: "center",
+    padding: 10,
+  },
+
+  modalPageBtnRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 28,
+    paddingBottom: 10,
+  },
+  pageCustomBtn: {
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pageCancelBtn: { backgroundColor: COLORS.disable },
+  pageSaveBtn: { backgroundColor: COLORS.primary },
+  pageCancelBtnText: {
+    fontFamily: "PressStart2P",
+    fontSize: 14,
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0,0,0,0.2)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
+  },
+  pageSaveBtnText: {
+    fontFamily: "PressStart2P",
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "bold",
+  },
+  pageBtnShadow: {
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+  },
+  pageBtnPressed: {
+    transform: [{ translateY: 2 },],
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+  },
 });
 
 const addStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FDFBF0", paddingTop: 56 },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#E8DDD5" },
+  container: { flex: 1, backgroundColor: COLORS.bg, },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
   backBtn: { marginRight: 16, paddingRight: 8 },
   backText: { fontSize: 22, color: "#5E433B", fontWeight: "bold" },
   amountRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
-  currencyBox: { flexDirection: "row", alignItems: "center", borderWidth: 2, borderColor: "#5E433B", paddingHorizontal: 10, paddingVertical: 7, gap: 4 },
+  currencyBox: { flexDirection: "row", alignItems: "center", borderWidth: 2, borderColor: "#5E433B", paddingHorizontal: 10, paddingVertical: 7, gap: 4, backgroundColor: COLORS.bg2 },
   currencyText: { fontSize: 13, fontWeight: "bold", color: "#5E433B" },
   dollarSign: { fontSize: 24, fontWeight: "bold", color: "#5E433B" },
-  amountInput: { flex: 1, fontSize: 32, fontWeight: "bold", color: "#5E433B" },
+  amountInput: {
+    fontSize: 34,
+    fontWeight: "bold",
+    color: "#5E433B",
+    minWidth: 120,
+  },
   convertedHint: { fontSize: 12, color: "#8D6E63", alignSelf: "flex-end", marginBottom: 4 },
   scroll: { flex: 1, paddingHorizontal: 20 },
   label: { fontSize: 13, fontWeight: "bold", color: "#5E433B", marginTop: 18, marginBottom: 7 },
-  field: { backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#C8B8A2", padding: 12, fontSize: 14, color: "#5E433B" },
+  field: {
+    backgroundColor: COLORS.bg2,
+    borderWidth: 2,
+    borderColor: COLORS.line,
+    height: 48,
+    paddingHorizontal: 12,
+    color: "#5E433B",
+  },
   placeholder: { color: "#C8B8A2" },
-  dropdown: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#C8B8A2", padding: 12 },
+  dropdown: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: COLORS.bg2, borderWidth: 1.5, borderColor: COLORS.line, padding: 12 },
   dropdownText: { fontSize: 14, color: "#5E433B" },
-  splitEntryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#C8B8A2", padding: 12, minHeight: 56 },
+  splitEntryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: COLORS.bg2, borderWidth: 1.5, borderColor: COLORS.line, padding: 12, minHeight: 56 },
   splitEntryLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   avatarStack: { width: 22 * 3 + 28, height: 28, position: "relative" },
   avatarStackItem: { position: "absolute", top: 0 },
   splitEntrySummary: { fontSize: 14, fontWeight: "bold", color: "#5E433B", marginLeft: 8 },
-  imagePicker: { width: "100%", height: 100, backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#C8B8A2", overflow: "hidden" },
+  imagePicker: { width: "100%", height: 100, backgroundColor: COLORS.bg2, borderWidth: 1.5, borderColor: COLORS.line, overflow: "hidden" },
   imagePreview: { width: "100%", height: "100%" },
   saveBtn: { backgroundColor: "#EC7424", borderWidth: 2, borderColor: "#5E433B", padding: 16, alignItems: "center", marginTop: 24 },
   saveBtnText: { color: "#FFF", fontWeight: "bold", fontSize: 16 },
@@ -1426,6 +1619,58 @@ const addStyles = StyleSheet.create({
   modalBtnShadow: { position: "absolute", top: 4, left: 4, right: -4, bottom: -4 },
   modalBtn: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderWidth: 2, borderColor: "#5E433B", alignItems: "center", justifyContent: "center" },
   modalBtnText: { fontWeight: "bold", fontSize: 14 },
+  pageCustomBtn: {
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pageSaveBtn: { backgroundColor: COLORS.primary },
+  pageBtnShadow: {
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+  },
+  pageBtnPressed: {
+    transform: [{ translateY: 2 },],
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+  },
+  pageCancelBtnText: {
+    fontFamily: "PressStart2P",
+    fontSize: 14,
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0,0,0,0.2)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
+  },
+  // 未上傳圖片時的方框
+  designAddImageFrame: {
+    width: "100%",
+    height: 110,
+    borderWidth: 2,
+    borderColor: "#5E433B",
+    backgroundColor: "#FFF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  designAddImageFrameText: {
+    fontSize: 14,
+    color: "#8D6E63",
+    fontWeight: "500",
+  },
+
+  // 已有圖片時的容器 (撐滿外框)
+  designAddImageFrameActive: {
+    width: "100%",
+    height: 110,
+    borderWidth: 2,
+    borderColor: "#5E433B",
+    backgroundColor: "#FFF",
+    padding: 5, // 給一點內距，讓圖片不要貼邊太緊
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });
 
 const splitStyles = StyleSheet.create({
@@ -1435,13 +1680,13 @@ const splitStyles = StyleSheet.create({
   backText: { fontSize: 22, color: "#5E433B", fontWeight: "bold" },
   title: { fontSize: 16, fontWeight: "bold", color: "#5E433B" },
   totalBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#5E433B", paddingHorizontal: 20, paddingVertical: 12 },
-  totalLabel: { fontSize: 13, color: "#E8DDD5", fontWeight: "bold" },
+  totalLabel: { fontSize: 16, color: "#E8DDD5", fontWeight: "bold" },
   totalAmt: { fontSize: 22, fontWeight: "bold", color: "#FDFBF0" },
   tabRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  tab: { flex: 1, alignItems: "center", paddingVertical: 10, borderWidth: 2, borderColor: "#C8B8A2", backgroundColor: "#FFF", gap: 3 },
+  tab: { flex: 1, alignItems: "center", paddingVertical: 16, borderWidth: 2, borderColor: "#C8B8A2", backgroundColor: "#FFF", gap: 3 },
   tabActive: { borderColor: "#5E433B", backgroundColor: "#5E433B" },
   tabEmoji: { fontSize: 18 },
-  tabLabel: { fontSize: 11, fontWeight: "bold", color: "#8D6E63" },
+  tabLabel: { fontSize: 14, fontWeight: "bold", color: "#8D6E63" },
   tabLabelActive: { color: "#FDFBF0" },
   hint: { fontSize: 12, color: "#8D6E63", marginHorizontal: 16, marginBottom: 10, marginTop: 4 },
   scroll: { flex: 1, paddingHorizontal: 16 },
@@ -1468,7 +1713,7 @@ const splitStyles = StyleSheet.create({
 
 const sheetStyles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: "#FDFBF0", borderTopWidth: 3, borderTopColor: "#5E433B", padding: 24, paddingBottom: 44 },
+  sheet: { backgroundColor: COLORS.bg, borderTopWidth: 3, borderTopColor: "#5E433B", padding: 24, paddingBottom: 44 },
   sheetTitle: { fontSize: 16, fontWeight: "bold", color: "#5E433B", textAlign: "center", marginBottom: 18 },
   option: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#E8DDD5" },
   optionCurrency: { fontSize: 16, fontWeight: "bold", color: "#5E433B", flex: 1 },
@@ -1501,4 +1746,5 @@ const calStyles = StyleSheet.create({
   cancelText: { color: "#5E433B", fontWeight: "bold", fontSize: 15 },
   confirmBtn: { flex: 1, backgroundColor: "#E84A41", borderWidth: 2, borderColor: "#5E433B", padding: 14, alignItems: "center" },
   confirmText: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
+
 });

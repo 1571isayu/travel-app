@@ -1,9 +1,10 @@
+import { COLORS } from "@/constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRoute } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
+import { useGlobalSearchParams } from "expo-router";
 import { Check, Plus, X } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
-
-import { COLORS } from "@/constants/theme";
 import {
   Image,
   Keyboard,
@@ -24,7 +25,12 @@ type TodoItem = { id: string; text: string; completed: boolean };
 type Document = { id: string; uri: string; title: string; note: string };
 
 export default function BackpackScreen() {
+  // 🌟 取得傳過來的冒險 ID
+  const route = useRoute<any>();
+  const adventureId = route.params?.adventureId || "default_id";
+  console.log("🎒 目前的冒險 ID 是：", adventureId);
   const { width: screenWidth } = useWindowDimensions();
+
   const [activeTab, setActiveTab] = useState<"todo" | "wallet">("todo");
   //左右滑動頁面
   const horizontalScrollRef = useRef<ScrollView>(null);
@@ -56,9 +62,10 @@ export default function BackpackScreen() {
   const [deletingDoc, setDeletingDoc] = useState<Document | null>(null);
 
   useEffect(() => {
-    loadData();
-
-  }, []);
+    if (adventureId) {
+      loadData();
+    }
+  }, [adventureId]); // 🌟 把 adventureId 加進陣列，只要 ID 改變就重新抓取對應的資料
   // 點擊上方標籤時，讓 ScrollView 滾動到對應位置
   const switchTab = (tab: "todo" | "wallet") => {
     setActiveTab(tab);
@@ -72,17 +79,34 @@ export default function BackpackScreen() {
     const pageIndex = Math.round(offsetX / screenWidth);
     setActiveTab(pageIndex === 0 ? "todo" : "wallet");
   };
+  // ✅ 換成這個：直接去全域網址抓 ID，保證抓得到！
+  const { id } = useGlobalSearchParams<{ id: string }>();
+  // --- 🌟 動態產生專屬的儲存 Key ---
+  // 如果沒有拿到 adventureId，先給一個預設值防呆
+  const TODO_KEY = `@backpack_todos_${adventureId || 'default'}`;
+  const DOC_KEY = `@backpack_docs_${adventureId || 'default'}`;
+
   // --- 資料持久化 ---
   const loadData = async () => {
-    const savedTodos = await AsyncStorage.getItem("@backpack_todos");
-    const savedDocs = await AsyncStorage.getItem("@backpack_docs");
-    if (savedTodos) setTodos(JSON.parse(savedTodos));
-    if (savedDocs) setDocuments(JSON.parse(savedDocs));
+    try {
+      const savedTodos = await AsyncStorage.getItem(TODO_KEY);
+      const savedDocs = await AsyncStorage.getItem(DOC_KEY);
+      
+      // 🌟 每次載入時先清空，確保不會殘留上一個冒險的資料
+      setTodos(savedTodos ? JSON.parse(savedTodos) : []);
+      setDocuments(savedDocs ? JSON.parse(savedDocs) : []);
+    } catch (error) {
+      console.error("讀取資料失敗:", error);
+    }
   };
 
   const saveData = async (newTodos: TodoItem[], newDocs: Document[]) => {
-    await AsyncStorage.setItem("@backpack_todos", JSON.stringify(newTodos));
-    await AsyncStorage.setItem("@backpack_docs", JSON.stringify(newDocs));
+    try {
+      await AsyncStorage.setItem(TODO_KEY, JSON.stringify(newTodos));
+      await AsyncStorage.setItem(DOC_KEY, JSON.stringify(newDocs));
+    } catch (error) {
+      console.error("儲存資料失敗:", error);
+    }
   };
 
   // --- 清單邏輯 ---

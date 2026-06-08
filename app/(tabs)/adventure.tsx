@@ -1326,12 +1326,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 1,
   },
-  pageSaveBtnText: {
-    fontFamily: "PressStart2P",
-    fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "bold",
-  },
+ 
   pageBtnShadow: {
     borderRightWidth: 2,
     borderBottomWidth: 4,

@@ -166,7 +166,8 @@ export default function HomeScreen() {
       setStartDate("");
       setEndDate("");
       setMarkedDates({});
-
+      // 🌟 1. 建立房間後，把新的 roomId 存起來！
+      await AsyncStorage.setItem("current_adventure_id", roomId);
       // 跳轉
       router.push({
         pathname: "/(tabs)/adventure",
@@ -225,7 +226,8 @@ export default function HomeScreen() {
         Alert.alert("成功加入", `已進入【${adventureData.name}】的冒險隊伍！`);
 
         setJoinId(""); // 清空輸入框
-
+        // 🌟 2. 加入房間後，把目標 trimmedId 存起來！
+        await AsyncStorage.setItem("current_adventure_id", trimmedId);
         router.push({
           pathname: "/(tabs)/adventure",
           params: { id: trimmedId, name: adventureData.name },
@@ -371,7 +373,11 @@ export default function HomeScreen() {
     setDateModalVisible(false);
   };
 
-  const handleSelectAdventure = (adv: AdventureRecord) => {
+  // 🌟 3. 點擊歷史紀錄時，記得加 async，並把 adv.id 存起來！
+  const handleSelectAdventure = async (adv: AdventureRecord) => {
+
+    await AsyncStorage.setItem("current_adventure_id", adv.id);
+
     router.push({
       pathname: "/(tabs)/adventure",
       params: { id: adv.id, name: adv.name },
@@ -433,7 +439,7 @@ export default function HomeScreen() {
       >
         <View style={styles.innerContainer}>
           <View style={styles.header}>
-            
+
             <View style={styles.headerTextCenter}>
               <Text style={texts.title2}>ADVENTURE</Text>
               <Text style={texts.subtitle}>開啟你的冒險</Text>
@@ -657,7 +663,7 @@ export default function HomeScreen() {
       <Modal visible={isDeleteModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.customDelModalContent}>
-            
+
             {/* 標題與內文 */}
             <Text style={styles.customDelTitle}>DELETE?</Text>
             <Text style={styles.customDelSubtitle}>
@@ -666,7 +672,7 @@ export default function HomeScreen() {
 
             {/* 按鈕區塊 */}
             <View style={{ flexDirection: "row", gap: 15, marginTop: 5 }}>
-              
+
               {/* CANCEL 按鈕 */}
               <Pressable
                 style={{ flex: 1 }}
@@ -975,7 +981,7 @@ const styles = StyleSheet.create({
   customDelTitle: {
     fontFamily: "PressStart2P",
     fontSize: 22,
-    color:COLORS.line,
+    color: COLORS.line,
     letterSpacing: 1,
   },
   customDelSubtitle: {
@@ -992,11 +998,11 @@ const styles = StyleSheet.create({
   },
   // cancel 淺綠色背景 (根據你的圖稿吸色)
   customDelCancelBtn: {
-    backgroundColor:COLORS.disable, // 帶灰感的像素粉綠
+    backgroundColor: COLORS.disable, // 帶灰感的像素粉綠
   },
   // OK 亮橘色背景 (根據你的圖稿吸色)
   customDelOkBtn: {
-    backgroundColor:COLORS.primary, // 經典亮橘色
+    backgroundColor: COLORS.primary, // 經典亮橘色
   },
   // 按鈕文字字型與顏色
   customDelCancelText: {
@@ -1013,7 +1019,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "bold",
   },
-  
+
   // 🌟 按鈕沒按下時的硬陰影（右和下加粗）
   delBtnShadowStyle: {
     borderRightWidth: 2,
@@ -1026,18 +1032,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
   },
   container_shadow_style: {
-  borderTopWidth: 2,
-  borderLeftWidth: 2,
-  borderRightWidth: 2,   
-  borderBottomWidth: 4,  // 下邊框加粗
-  borderColor: COLORS.line, 
-},
-container_pressed_style: {
-  transform: [{ translateY: 2 }], // 按下時往右下沉
-  borderTopWidth: 2,
-  borderLeftWidth: 2,
-  borderRightWidth: 2,   // 陰影壓扁
-  borderBottomWidth: 2,  
-  borderColor: COLORS.line,
-},
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderBottomWidth: 4,  // 下邊框加粗
+    borderColor: COLORS.line,
+  },
+  container_pressed_style: {
+    transform: [{ translateY: 2 }], // 按下時往右下沉
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,   // 陰影壓扁
+    borderBottomWidth: 2,
+    borderColor: COLORS.line,
+  },
 });
