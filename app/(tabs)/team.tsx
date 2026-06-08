@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect, useGlobalSearchParams } from "expo-router";
+
 import {
   arrayRemove,
   doc,
@@ -21,6 +22,7 @@ import {
 } from "react-native";
 import { db } from "../../firebaseConfig";
 
+import { COLORS } from "@/constants/theme";
 // ─────────────────────────────────────────────
 // 角色圖對照表（直接用 characterId 對應圖片）
 // ─────────────────────────────────────────────
@@ -403,7 +405,7 @@ const CARD_BG = "#FDFAF2";
 const ORANGE = "#EC7424";
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1, backgroundColor:COLORS.bg },
   scrollContent: {
     paddingTop: 60,
     paddingHorizontal: 20,

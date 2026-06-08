@@ -1,7 +1,7 @@
 import { arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig"; // 🌟 確保從正確的相對路徑引入 db
 
-import { COLORS, fieldStyles, icons, texts } from "@/constants/theme";
+import { COLORS, fieldStyles, texts } from "@/constants/theme";
 import {
   PressStart2P_400Regular,
   useFonts,
@@ -433,17 +433,11 @@ export default function HomeScreen() {
       >
         <View style={styles.innerContainer}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}>
-              <Image
-                source={require("../img/icon_chevronLeft.png")}
-                style={icons.icon14}
-              />
-            </TouchableOpacity>
+            
             <View style={styles.headerTextCenter}>
               <Text style={texts.title2}>ADVENTURE</Text>
               <Text style={texts.subtitle}>開啟你的冒險</Text>
             </View>
-            <View style={styles.headerSpacer} />
           </View>
 
           <ScrollView
@@ -742,7 +736,7 @@ const styles = StyleSheet.create({
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     marginBottom: 20,
   },
   loadingContainer: {

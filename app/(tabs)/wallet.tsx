@@ -33,6 +33,7 @@ import {
 } from "react-native";
 import { db } from "../../firebaseConfig";
 
+import { COLORS } from "@/constants/theme";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1289,7 +1290,7 @@ function TransactionFormModal({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const mainStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FDFBF0", paddingTop: 60, position: "relative" },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, position: "relative" },
   loading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#FDFBF0" },
   tabRow: { flexDirection: "row", paddingHorizontal: 20, gap: 10, marginBottom: 10 },
   tab: { flex: 1, alignItems: "center", paddingVertical: 12, borderWidth: 2, borderColor: "#5E433B", backgroundColor: "#FDFBF0" },

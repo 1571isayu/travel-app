@@ -2,6 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
+
+import { COLORS } from "@/constants/theme";
 import {
   Image,
   Keyboard,
@@ -553,7 +555,7 @@ export default function BackpackScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FDFBF0", paddingTop: 60 },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60 },
   tabContainer: { flexDirection: "row", paddingHorizontal: 20, gap: 10, height: 46, alignItems: "center" },
   tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#FFF", gap: 8 },
   activeTab: { backgroundColor: "#4A342E" },

@@ -1,27 +1,31 @@
+//模組
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+import { auth, db } from "../../firebaseConfig";
 
+import { COLORS, texts } from "@/constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useFocusEffect, useGlobalSearchParams } from "expo-router";
 import { Plus, X } from "lucide-react-native";
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Dimensions,
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -32,14 +36,25 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  UIManager,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { MenuContext } from "../../content/MenuContext";
+//角色圖對照
+const CHARACTER_MAP: Record<string, any> = {
+  bear: require("../../character/character_bear.gif"),
+  cat: require("../../character/character_cat.gif"),
+};
 
+function getCharacterSource(characterId: string | null | undefined) {
+  if (!characterId) return null;
+  const key = String(characterId).trim();
+  return CHARACTER_MAP[key] ?? null;
+}
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
+//行程卡片
 type TimelineItemType = {
   id: string;
   day: number;
@@ -52,17 +67,71 @@ type TimelineItemType = {
   isPast: boolean;
   createdBy: string;
 };
-
+// 🌟 開啟 Android 的 LayoutAnimation 支援
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 export default function AdventureScreen() {
-  const { id, name } = useLocalSearchParams();
-  const { openMenu } = useContext(MenuContext);
+  //宣告畫面變數
+  const params = useGlobalSearchParams();
+  const [id, setId] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
+  // 1. 新增編輯模式狀態
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState("");
 
+  // 2. 更新 Firestore 的函式
+  const handleUpdateName = async () => {
+    if (!id || tempName.trim() === "" || tempName === name) {
+      setIsEditingName(false);
+      return;
+    }
+    try {
+      const docRef = doc(db, "adventures", id);
+      await updateDoc(docRef, { name: tempName });
+      setName(tempName); // 更新畫面顯示
+      setIsEditingName(false);
+    } catch (error) {
+      Alert.alert("錯誤", "無法更新名稱");
+    }
+  };
+  // 🌟 2. 智能參數攔截器：網址有帶就存進手機，網址遺失就從手機撈回來救命！
+  useEffect(() => {
+    const rescueParams = async () => {
+      if (params.id) {
+        // 正常進入：記住參數並寫入保險箱
+        setId(params.id as string);
+        setName(params.name as string);
+        await AsyncStorage.setItem("@current_adventure_id", params.id as string);
+        if (params.name) await AsyncStorage.setItem("@current_adventure_name", params.name as string);
+      } else {
+        // 從 Setup 回來（網址參數消失了）：從保險箱拿出來用！
+        const storedId = await AsyncStorage.getItem("@current_adventure_id");
+        const storedName = await AsyncStorage.getItem("@current_adventure_name");
+        if (storedId) setId(storedId);
+        if (storedName) setName(storedName);
+      }
+    };
+    rescueParams();
+  }, [params.id, params.name]);
+
+  //UI狀態
   const [currentDay, setCurrentDay] = useState(1);
+
   const [totalDays, setTotalDays] = useState(1);
   const [adventureDates, setAdventureDates] = useState({ start: "", end: "" });
   const [items, setItems] = useState<TimelineItemType[]>([]);
   const [loading, setLoading] = useState(true);
+  // 🌟 自動計算動態寬度魔法
+  // 假設兩邊邊距是 20，按鈕間距是 10 (配合你原本的 styles.dayScrollContent)
+  const PADDING_HORIZONTAL = 20;
+  const TAB_GAP = 10;
 
+  // 如果天數 <= 4，就用實際天數平分；如果 > 4，就固定用 4 等份的寬度
+  const visibleCount = Math.min(totalDays, 4);
+
+  // 算出每顆按鈕最完美的寬度
+  const dynamicTabWidth = (SCREEN_WIDTH - (PADDING_HORIZONTAL * 2) - (TAB_GAP * (visibleCount - 1))) / visibleCount;
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedFullImage, setSelectedFullImage] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -76,13 +145,25 @@ export default function AdventureScreen() {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
-  
+
   // 🌟 管理目前在 Modal 視窗中暫存、準備上傳或預覽的照片 URIs
   const [modalImageUris, setModalImageUris] = useState<string[]>([]);
 
   const [roomMembers, setRoomMembers] = useState<any[]>([]);
   const [myProfile, setMyProfile] = useState<any>(null);
-
+  // 🔴 1. 新增這個：用來強迫 useEffect 重新執行的觸發器
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  // 🔴 2. 新增這個：每次畫面出現時都會被執行的 Hook
+  useFocusEffect(
+    useCallback(() => {
+      // 確保每次回到這頁，都立刻抓取最新的本機資料
+      AsyncStorage.getItem("@user_profile").then((str) => {
+        if (str) setMyProfile(JSON.parse(str));
+      });
+      // 改變數值，強制底下的 useEffect 重新去 Firebase 撈大家的最新頭像
+      setRefreshTrigger((prev) => prev + 1);
+    }, [])
+  );
   const horizontalScrollRef = useRef<ScrollView>(null);
   const dayTabScrollRef = useRef<ScrollView>(null);
 
@@ -120,10 +201,11 @@ export default function AdventureScreen() {
       setEndTime(new Date());
     }
     setEditingId(null);
-    setModalImageUris([]); 
+    setModalImageUris([]);
     setIsModalVisible(true);
   };
 
+  //監聽rebase監聽+資料計算
   useEffect(() => {
     if (!id) return;
 
@@ -131,17 +213,38 @@ export default function AdventureScreen() {
       console.error("儲存冒險 ID 失敗:", err),
     );
 
-    AsyncStorage.getItem("@user_profile").then((str) => {
-      if (str) setMyProfile(JSON.parse(str));
-    });
+
 
     const unsubRoom = onSnapshot(
       doc(db, "adventures", id as string),
-      (docSnap) => {
+      async (docSnap) => { // 👈 記得這裡要加 async
         if (docSnap.exists()) {
           const data = docSnap.data();
           setRoomMembers(data.members || []);
-
+          // 🔴 關鍵修復：像隊伍頁面一樣，去 users 表抓最新的頭像資料
+          const rawMembers = data.members || [];
+          const enriched = await Promise.all(
+            rawMembers.map(async (m: any) => {
+              const memberUid = typeof m === "string" ? m : m.uid;
+              if (!memberUid) return m;
+              try {
+                const userSnap = await getDoc(doc(db, "users", memberUid));
+                if (userSnap.exists()) {
+                  const u = userSnap.data();
+                  return {
+                    ...(typeof m === "object" ? m : { uid: memberUid }),
+                    uid: memberUid,
+                    name: u.displayName || u.name || "冒險者",
+                    characterId: u.characterId || u.avatar || null, // 抓取最新的角色 ID
+                  };
+                }
+              } catch (e) {
+                console.warn("抓取行程成員資料失敗:", e);
+              }
+              return typeof m === "object" ? m : { uid: memberUid };
+            })
+          );
+          setRoomMembers(enriched);
           if (data.startDate && data.endDate) {
             const start = new Date(data.startDate);
             const end = new Date(data.endDate);
@@ -174,8 +277,8 @@ export default function AdventureScreen() {
       unsubRoom();
       unsubItinerary();
     };
-  }, [id]);
-
+  }, [id, refreshTrigger]);
+  //滑動頁面事件
   const handleScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const contentOffsetX = e.nativeEvent.contentOffset.x;
     const page = Math.round(contentOffsetX / SCREEN_WIDTH) + 1;
@@ -187,7 +290,7 @@ export default function AdventureScreen() {
       });
     }
   };
-
+  //點擊DAY事件
   const handleDayTabPress = (dayIndex: number) => {
     setCurrentDay(dayIndex);
     horizontalScrollRef.current?.scrollTo({
@@ -195,7 +298,7 @@ export default function AdventureScreen() {
       animated: true,
     });
   };
-
+  //關閉新增/編輯行程視窗
   const closeModal = () => {
     Keyboard.dismiss();
     setIsModalVisible(false);
@@ -209,7 +312,7 @@ export default function AdventureScreen() {
     setShowEndPicker(false);
     setShowTypePicker(false);
   };
-
+  //儲存行程事件
   const handleSaveTask = () => {
     if (!taskTitle) {
       Alert.alert("提示", "請輸入行程標題");
@@ -222,17 +325,27 @@ export default function AdventureScreen() {
       title: taskTitle,
       desc: taskDesc,
       location: taskLocation,
-      imageUris: modalImageUris, 
+      imageUris: modalImageUris,
       isPast: false,
     });
     closeModal();
   };
-
+  //儲存行程到 Firebase
   const handleSaveItem = async (
     newItemData: Omit<TimelineItemType, "id" | "createdBy" | "day">,
   ) => {
-    if (!myProfile) {
-      Alert.alert("錯誤", "無法辨識您的使用者身份，請重啟 App");
+    // 防呆 1：確保 ID 有救回來
+    if (!id) {
+      Alert.alert("連線錯誤", "遺失冒險資料，請退回首頁重新進入！");
+      return;
+    }
+
+    // 🔴 終極殺手鐧：直接從 Firebase Auth 抓取現在登入者的 UID，不再依賴 AsyncStorage！
+    const currentUid = auth.currentUser?.uid || myProfile?.uid;
+
+    // 防呆 2：雙重確認都抓不到再擋
+    if (!currentUid) {
+      Alert.alert("錯誤", "系統抓不到你的登入狀態，請重啟 App！");
       return;
     }
 
@@ -248,7 +361,7 @@ export default function AdventureScreen() {
         await addDoc(itineraryRef, {
           ...newItemData,
           day: currentDay,
-          createdBy: myProfile.uid,
+          createdBy: currentUid, // 👈 🌟 使用剛剛抓到的真實 UID 寫入行程
         });
       }
     } catch (error) {
@@ -259,12 +372,12 @@ export default function AdventureScreen() {
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
-
+  // 刪除行程的觸發函式
   const handleDeleteTask = (itemId: string) => {
     setDeleteTargetId(itemId);
     setIsDeleteModalVisible(true);
   };
-
+  // 確認刪除的函式
   const confirmDelete = async () => {
     if (deleteTargetId) {
       try {
@@ -312,7 +425,7 @@ export default function AdventureScreen() {
 
     if (!result.canceled) {
       const newUris = result.assets.map((asset) => asset.uri);
-      setModalImageUris((prev) => [...prev, ...newUris]); 
+      setModalImageUris((prev) => [...prev, ...newUris]);
     }
   };
 
@@ -377,23 +490,47 @@ export default function AdventureScreen() {
 
       {/* Header 區塊 */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.replace("/home")}>
+        <TouchableOpacity style={{ height: 32, width: 32 }} onPress={() => router.replace("/home")}>
           <Image
             source={require("../../img/icon_chevronLeft.png")}
-            style={{ height: 14, aspectRatio: 1 }}
+            style={{ height: 20, aspectRatio: 1 }}
             resizeMode="contain"
           />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>
-            {renderPixelText(name ? name.toString().toUpperCase() : "MY ADVENTURE")}
-          </Text>
-          <Text style={[styles.headerDate, { fontFamily: "PressStart2P", fontSize: 10, marginTop: 5 }]}>
+          {isEditingName ? (
+            // 編輯狀態：顯示輸入框
+            <TextInput
+              style={[styles.pixelTitleInput, { fontSize: 16, padding: 0 }]}
+              value={tempName}
+              onChangeText={setTempName}
+              onBlur={handleUpdateName} // 點擊外面自動儲存
+              onEndEditing={handleUpdateName} // 按下鍵盤完成自動儲存
+              autoFocus
+              placeholder="請輸入名稱"
+              placeholderTextColor={COLORS.line2}
+            />
+          ) : (
+            // 顯示狀態：可點擊觸發編輯
+            <TouchableOpacity 
+              onPress={() => {
+                setTempName(name || "");
+                setIsEditingName(true);
+              }}
+              style={{ alignItems: 'center' }}
+            >
+              <Text style={texts.title2}>
+                {renderPixelText(name ? name.toString().toUpperCase() : "MY ADVENTURE")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <Text style={[texts.subtitle, { marginTop: 5 }]}>
             {`${formatShortDate(adventureDates.start)}~${formatShortDate(adventureDates.end)}`}
           </Text>
         </View>
 
-        <TouchableOpacity
+        <TouchableOpacity style={{ height: 32, width: 32 }}
           onPress={() => {
             if (id) {
               router.push({ pathname: "/map", params: { id, name } });
@@ -404,7 +541,7 @@ export default function AdventureScreen() {
         >
           <Image
             source={require("../../img/icon_map.png")}
-            style={{ height: 20, width: 20 }}
+            style={{ height: 24, aspectRatio: 1 }}
             resizeMode="contain"
           />
         </TouchableOpacity>
@@ -419,18 +556,25 @@ export default function AdventureScreen() {
           contentContainerStyle={styles.dayScrollContent}
         >
           {Array.from({ length: totalDays }).map((_, index) => (
-            <TouchableOpacity
+            <Pressable
               key={index + 1}
-              style={[
-                styles.dayTab,
-                currentDay === index + 1 && styles.dayTabActive,
-              ]}
               onPress={() => handleDayTabPress(index + 1)}
             >
-              <Text style={[styles.dayTabText, currentDay === index + 1 && styles.dayTabTextActive]}>
-                DAY {index + 1}
-              </Text>
-            </TouchableOpacity>
+              {({ pressed }) => (
+                <View
+                  style={[
+                    styles.dayTab,
+                    { width: dynamicTabWidth }, // 👈 🌟 加上這行！它會覆蓋原本的寬度設定
+                    currentDay === index + 1 && styles.dayTabActive,
+                    pressed ? styles.dayTabPressed : styles.dayTabShadow,
+                  ]}
+                >
+                  <Text style={[texts.title2, currentDay === index + 1 && { color: "#FFF" }]}>
+                    {renderPixelText(`DAY${index + 1}`)}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
           ))}
         </ScrollView>
       </View>
@@ -464,9 +608,9 @@ export default function AdventureScreen() {
 
                   {dayItems.length > 0 ? (
                     dayItems.map((item) => {
-                      const creator = roomMembers.find((m) => m.uid === item.createdBy);
-                      const borderColor = creator?.color || "#5E433B";
-                      const avatarSource = creator?.avatar ? { uri: creator.avatar } : require("../../img/icon_user.png");
+                      // 🔴 1. 刪除原本抓取頭像的變數，換成判斷「是不是我建立的」
+                      const currentUid = auth.currentUser?.uid || myProfile?.uid;
+                      const isCreator = item.createdBy === currentUid;
 
                       return (
                         <View key={item.id} style={styles.timelineRow}>
@@ -477,17 +621,18 @@ export default function AdventureScreen() {
                             style={{ flex: 1 }}
                             delayLongPress={600}
                             onLongPress={() => {
-                              if (item.createdBy !== myProfile?.uid) return;
+                              if (!isCreator) return; // 👈 直接用 isCreator 判斷
                               handleDeleteTask(item.id);
                             }}
                             onPress={() => {
-                              if (item.createdBy !== myProfile?.uid) return;
+                              if (!isCreator) return; // 👈 直接用 isCreator 判斷
+
                               setEditingId(item.id);
                               setTaskTitle(item.title);
                               setTaskLocation(item.location || "");
                               setTaskDesc(item.desc || "");
                               setTaskType(item.type);
-                              setModalImageUris(item.imageUris || []); 
+                              setModalImageUris(item.imageUris || []);
 
                               const [sTimeStr, eTimeStr] = item.time.split("~");
                               const [sH, sM] = sTimeStr.split(":").map(Number);
@@ -499,10 +644,25 @@ export default function AdventureScreen() {
                             }}
                           >
                             {({ pressed }) => (
-                              <View style={[styles.card, pressed && { opacity: 0.8 }]}>
+                              <View
+                                style={[
+                                  styles.card,
+                                  // 🌟 判斷按下狀態：沒按顯示 Shadow，按下去顯示 Pressed
+                                  pressed ? styles.cardPressed : styles.cardShadow
+                                ]}
+                              >
+                                {/* ... 以下內容不變 (cardHeader, cardTitle...) */}
                                 <View style={styles.cardHeader}>
                                   <Text style={styles.cardTime}>{item.time}</Text>
-                                  <View style={styles.cardActions} />
+                                  <View style={styles.cardActions}>
+                                    {isCreator && (
+                                      <Image
+                                        source={require("../../img/icon_edit.png")}
+                                        style={{ width: 16, height: 16, tintColor: "#8D6E63" }}
+                                        resizeMode="contain"
+                                      />
+                                    )}
+                                  </View>
                                 </View>
 
                                 <Text style={styles.cardTitle}>{item.title}</Text>
@@ -521,7 +681,6 @@ export default function AdventureScreen() {
                                       style={{ height: 20, width: 20 }}
                                       resizeMode="contain"
                                     />
-                                    
                                   </View>
 
                                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1, marginLeft: 5 }}>
@@ -534,9 +693,7 @@ export default function AdventureScreen() {
                                     </View>
                                   </ScrollView>
 
-                                  <View style={[styles.tinyCreatorAvatarContainer, { borderColor: borderColor }]}>
-                                    <Image source={avatarSource} style={styles.tinyCreatorAvatar} />
-                                  </View>
+                                  {/* 🔴 3. 最右邊的 <View style={styles.tinyCreatorAvatarContainer}>... 已經被整塊刪除！ */}
                                 </View>
                               </View>
                             )}
@@ -559,10 +716,28 @@ export default function AdventureScreen() {
       </ScrollView>
 
       {/* 底部加號按鈕 */}
-      <TouchableOpacity style={styles.fab} onPress={openAddModal}>
-        <Plus size={32} color="#FFF" />
-      </TouchableOpacity>
-
+      <Pressable
+        onPress={openAddModal}
+        style={({ pressed }) => [
+          styles.fab, // 保留原本的 FAB 圓形外框設定
+          pressed && { transform: [{ translateY: 2 }] }, // 按下時微微下移一點點
+        ]}
+      >
+        {({ pressed }) => (
+          <View>
+            {/* 預設狀態的圖片 */}
+            <Image
+              source={require("../../img/button_plus.png")}
+              style={[styles.fabIcon, { opacity: pressed ? 0 : 1 }]}
+            />
+            {/* 按下狀態的圖片 (絕對定位疊在上面) */}
+            <Image
+              source={require("../../img/button_plus_pressed.png")}
+              style={[styles.fabIcon, styles.fabIconAbsolute, { opacity: pressed ? 1 : 0 }]}
+            />
+          </View>
+        )}
+      </Pressable>
       {/* 放大圖片 Modal */}
       <Modal visible={!!selectedFullImage} transparent animationType="fade">
         <View style={styles.fullImageOverlay}>
@@ -579,32 +754,44 @@ export default function AdventureScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
 
             {/* 頂部 Header */}
-            <View style={styles.modalPageHeader}>
-              <TouchableOpacity onPress={closeModal}>
-                <Image source={require("../../img/icon_chevronLeft.png")} style={{ height: 16, width: 16 }} resizeMode="contain" />
-              </TouchableOpacity>
-              <View style={{ flex: 1, alignItems: "center", marginHorizontal: 10 }}>
-                <TextInput
-                  style={[styles.pixelTitleInput, { padding: 0 }]}
-                  placeholder="請在此輸入目的地"
-                  placeholderTextColor="#8D6E63"
-                  value={taskTitle}
-                  onChangeText={setTaskTitle}
-                  autoFocus={isModalVisible} // 自動跳出鍵盤
-                />
-              </View>
-              <Image source={require("../../img/icon_edit.png")} style={{ height: 16, width: 16 }} resizeMode="contain" />
+            {/* 1. 頂部列：返回按鈕 (獨立一排，整排寬度皆可點擊) */}
+            <TouchableOpacity
+              onPress={closeModal}
+              style={{ width: "100%", paddingHorizontal: 20, paddingTop: Platform.OS === "ios" ? 10 : 20, paddingBottom: 15 }}
+            >
+              <Image source={require("../../img/icon_chevronLeft.png")} style={{ height: 16, width: 16 }} resizeMode="contain" />
+            </TouchableOpacity>
+
+            {/* 2. 中間列：文字輸入框與編輯 Icon */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 20, paddingBottom: 8, width: "100%", position: "relative" }}>
+              {/* 文字置中 */}
+              <TextInput
+                style={[styles.pixelTitleInput, { padding: 0 }]}
+                placeholder="請在此輸入目的地"
+                placeholderTextColor="#8D6E63"
+                value={taskTitle}
+                onChangeText={setTaskTitle}
+                autoFocus={isModalVisible} // 自動跳出鍵盤
+              />
+              {/* 編輯 Icon 靠右絕對定位，這樣才不會把文字往左邊擠 */}
+              <Image
+                source={require("../../img/icon_edit.png")}
+                style={{ height: 16, width: 16, position: "absolute", right: 20, bottom: 10 }}
+                resizeMode="contain"
+              />
             </View>
 
-            <Image source={require("../../img/ad_line.png")} style={styles.modalSeparator} />
-
+            {/* 3. 底部列：波浪底線 (左右距離邊界 20) */}
+            <View style={{ paddingHorizontal: 20, width: "100%", marginBottom: 15 }}>
+              <Image source={require("../../img/ad_line.png")} style={{ width: "100%", height: 10, resizeMode: "contain" }} />
+            </View>
             <ScrollView
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 30 }}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 30, gap: 10 }}
             >
               {/* 時間區塊 */}
-              <Text style={styles.inputLabel}>時間</Text>
+              <Text style={texts.subtitle2}>時間</Text>
               <View style={styles.timePickerWrapper}>
                 <View style={styles.timePickerRow}>
                   <TouchableOpacity style={[styles.pixelTimeBox, showStartPicker && styles.activeTimeBox]} onPress={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}>
@@ -622,15 +809,22 @@ export default function AdventureScreen() {
                       value={showStartPicker ? startTime : endTime}
                       mode="time"
                       style={styles.dateTimePicker}
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      // 🔴 關鍵修改：拔掉 Platform 判斷，直接強制兩邊都使用 "spinner"
+                      display="spinner"
                       is24Hour={false}
                       locale="zh_TW"
                       textColor="#4A342E"
                       onChange={(e, d) => {
-                        if (Platform.OS === "android") { setShowStartPicker(false); setShowEndPicker(false); }
+                        // Android 選完時間後會自動關閉彈出視窗，所以這裡把狀態設為 false 是正確的
+                        if (Platform.OS === "android") {
+                          setShowStartPicker(false);
+                          setShowEndPicker(false);
+                        }
                         if (d) showStartPicker ? setStartTime(d) : setEndTime(d);
                       }}
                     />
+
+                    {/* 這裡維持只給 iOS 顯示「完成」按鈕，因為 Android 的彈出視窗自帶「確定/取消」了 */}
                     {Platform.OS === "ios" && (
                       <TouchableOpacity style={{ alignSelf: "center", marginBottom: 10 }} onPress={() => { setShowStartPicker(false); setShowEndPicker(false); }}>
                         <Text style={{ color: "#EC7424", fontWeight: "bold" }}>完成</Text>
@@ -641,24 +835,62 @@ export default function AdventureScreen() {
               </View>
 
               {/* 地址區塊 */}
-              <Text style={styles.inputLabel}>地址</Text>
+              <Text style={texts.subtitle2}>地址</Text>
               <TextInput style={styles.pixelInput} placeholder="請輸入地址" placeholderTextColor="#8D6E63" value={taskLocation} onChangeText={setTaskLocation} />
 
               {/* 類型區塊 */}
-              <Text style={styles.inputLabel}>類型</Text>
+              <Text style={texts.subtitle2}>類型</Text>
               <View style={{ position: "relative", zIndex: 10 }}>
-                <TouchableOpacity style={[styles.customDropdownHeader, showTypePicker && { borderBottomWidth: 0 }]} onPress={() => setShowTypePicker(!showTypePicker)}>
-                  <Text style={[styles.customDropdownText, taskType ? { color: "#4A342E" } : {}]}>
+
+                <TouchableOpacity
+                  // 🔴 1. 拿掉 showTypePicker 時隱藏底線的設定，讓底線永遠保持存在！
+                  style={styles.customDropdownHeader}
+                  onPress={() => {
+                    // 🌟 加入展開/收合的動畫過渡效果
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setShowTypePicker(!showTypePicker);
+                  }}
+                >
+                  <Text style={[styles.customDropdownText, taskType ? { color: "#4A342E", fontWeight: "bold" } : {}]}>
                     {taskType === "spot" ? "景點" : taskType === "food" ? "美食" : taskType === "shopping" ? "購物" : "請選擇行程類型"}
                   </Text>
-                  <Image source={require("../../img/icon_chevronDown.png")} style={styles.dropdownIcon} />
+
+                  {/* 🔴 2. 右側的 Icon：如果有選擇類型，就變身成對應的圖示；沒有就顯示向下的箭頭 */}
+                  <Image
+                    source={
+                      taskType === "spot" ? require("../../img/icon_star.png") :
+                        taskType === "food" ? require("../../img/icon_food.png") :
+                          taskType === "shopping" ? require("../../img/icon_shopping.png") :
+                            require("../../img/icon_chevronDown.png")
+                    }
+                    style={styles.dropdownIcon}
+                  />
                 </TouchableOpacity>
+
                 {showTypePicker && (
                   <View style={styles.customDropdownList}>
                     {["spot", "food", "shopping"].map((type) => (
-                      <TouchableOpacity key={type} style={styles.customDropdownItem} onPress={() => { setTaskType(type); setShowTypePicker(false); }}>
-                        <Text style={styles.customDropdownItemText}>{type === "spot" ? "景點" : type === "food" ? "美食" : "購物"}</Text>
-                        <Image source={type === "spot" ? require("../../img/icon_star.png") : type === "food" ? require("../../img/icon_food.png") : require("../../img/icon_shopping.png")} style={styles.dropdownIcon} />
+                      <TouchableOpacity
+                        key={type}
+                        style={styles.customDropdownItem}
+                        onPress={() => {
+                          // 🌟 點擊選項收起時，一樣加入動畫過渡效果
+                          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                          setTaskType(type);
+                          setShowTypePicker(false);
+                        }}
+                      >
+                        <Text style={styles.customDropdownItemText}>
+                          {type === "spot" ? "景點" : type === "food" ? "美食" : "購物"}
+                        </Text>
+                        <Image
+                          source={
+                            type === "spot" ? require("../../img/icon_star.png") :
+                              type === "food" ? require("../../img/icon_food.png") :
+                                require("../../img/icon_shopping.png")
+                          }
+                          style={styles.dropdownIcon}
+                        />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -666,15 +898,15 @@ export default function AdventureScreen() {
               </View>
 
               {/* 備註區塊 */}
-              <Text style={styles.inputLabel}>備註</Text>
-              <TextInput style={[styles.pixelInput, styles.pixelTextArea]} multiline placeholder="請輸入備註..." placeholderTextColor="#8D6E63" value={taskDesc} onChangeText={setTaskDesc} />
+              <Text style={texts.subtitle2}>備註</Text>
+              <TextInput style={[styles.pixelInput, styles.pixelTextArea]} multiline placeholder="請輸入備註...(交通、編輯者等等)" placeholderTextColor="#8D6E63" value={taskDesc} onChangeText={setTaskDesc} />
 
               {/* 🌟 完美復刻 image_fef663.png 寬型大圖片方框 */}
-              <Text style={styles.inputLabel}>圖片</Text>
+              <Text style={texts.subtitle2}>圖片</Text>
               {modalImageUris.length === 0 ? (
                 // 狀況 A：還沒有照片時，秀出設計稿原本的「點此上傳圖片+」大格子
                 <TouchableOpacity style={styles.designAddImageFrame} onPress={pickImagesForModal}>
-                  <Text style={styles.designAddImageFrameText}>點此上傳圖片+</Text>
+                  <Text style={texts.subtitle}>點此上傳圖片+</Text>
                 </TouchableOpacity>
               ) : (
                 // 狀況 B：有照片時，在同一個大格子裡做橫向滾動預覽，長按一樣可刪除
@@ -682,10 +914,10 @@ export default function AdventureScreen() {
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
                       {modalImageUris.map((uri, idx) => (
-                        <TouchableOpacity 
-                          key={idx} 
-                          onPress={() => setSelectedFullImage(uri)} 
-                          onLongPress={() => removeImageFromModal(uri)} 
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => setSelectedFullImage(uri)}
+                          onLongPress={() => removeImageFromModal(uri)}
                           delayLongPress={500}
                         >
                           <Image source={{ uri }} style={styles.designPreviewImage} />
@@ -713,7 +945,7 @@ export default function AdventureScreen() {
                 <Pressable style={{ flex: 1 }} onPress={handleSaveTask}>
                   {({ pressed }) => (
                     <View style={[styles.pageCustomBtn, styles.pageSaveBtn, pressed ? styles.pageBtnPressed : styles.pageBtnShadow]}>
-                      <Text style={styles.pageSaveBtnText}>save</Text>
+                      <Text style={styles.pageCancelBtnText}>save</Text>
                     </View>
                   )}
                 </Pressable>
@@ -747,7 +979,7 @@ export default function AdventureScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FDFBF0" },
+  container: { flex: 1, backgroundColor: COLORS.bg },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
@@ -758,8 +990,8 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   headerTitleContainer: { alignItems: "center" },
-  headerTitle: { flexDirection: "row", alignItems: "center", color: "#4A342E" },
-  headerDate: { fontSize: 14, color: "#8D6E63" },
+  headerTitle: { flexDirection: "row", alignItems: "center", color: COLORS.line, fontSize: 12, },
+  headerDate: { fontSize: 14, color: COLORS.line2 },
   daySelectorContainer: { marginVertical: 10 },
   dayScrollContent: { paddingHorizontal: 20, gap: 10 },
   dayTab: {
@@ -770,10 +1002,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     alignItems: "center",
   },
-  dayTabActive: { backgroundColor: "#4A342E" },
+
+  // 🌟 1. 未按下時的狀態：加厚右邊跟下方的邊框，營造出立體的實體陰影感
+  dayTabShadow: {
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+  },
+
+  // 🌟 2. 按下時的狀態：按鈕往右下角推移，同時邊框變回一般的 2，產生被「壓扁」的錯覺
+  dayTabPressed: {
+    transform: [{ translateY: 2 }],
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+  },
+  dayTabActive: { backgroundColor: COLORS.line2 },
   dayTabText: { fontSize: 12, color: "#4A342E", fontWeight: "bold" },
   dayTabTextActive: { color: "#FFF" },
-  separatorLine: { width: "100%", height: 15, resizeMode: "contain" },
+  separatorLine: { width: "100%", height: 10, resizeMode: "contain" },
 
   mainHorizontalScroll: { flex: 1 },
   pageContainer: { width: SCREEN_WIDTH, flex: 1 },
@@ -781,19 +1026,19 @@ const styles = StyleSheet.create({
   timelineWrapper: { paddingTop: 10, position: "relative", minHeight: 300 },
   verticalLine: {
     position: "absolute",
-    left: 7.5,
-    top: 0,
+    left: 5,
+    top: -10,
     bottom: 0,
     width: 6,
-    backgroundColor: "#4A342E",
+    backgroundColor: COLORS.disable,
   },
-  timelineRow: { flexDirection: "row", marginBottom: 25 },
+  timelineRow: { flexDirection: "row", marginBottom: 1 },
   timelineDot: {
     width: 16,
     height: 16,
     borderRadius: 8,
     backgroundColor: "#FFF",
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: "#4A342E",
     marginTop: 20,
     marginRight: 15,
@@ -802,9 +1047,24 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     backgroundColor: "#FFF",
+    // 1. 將四邊邊框拆開，為了做出「右下角比較粗」的陰影感
     borderWidth: 2,
-    borderColor: "#4A342E",
+    borderColor: "#5E433B",
     padding: 15,
+    marginBottom: 20,
+  },
+
+  // 🌟 靜態時的陰影效果 (底邊寬度4，右邊寬度2)
+  cardShadow: {
+    borderBottomWidth: 4,
+    borderRightWidth: 2,
+  },
+
+  // 🌟 按下時的效果：往 Y 軸移動 2，且右下邊框變薄，產生「陷入」感
+  cardPressed: {
+    transform: [{ translateY: 2 }],
+    borderBottomWidth: 4,
+    borderRightWidth: 2,
   },
   cardHeader: {
     flexDirection: "row",
@@ -812,7 +1072,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 5,
   },
-  cardTime: { fontSize: 13, color: "#8D6E63" },
+  cardTime: { fontSize: 13, color: "#8D6E63" , fontWeight: "bold"},
   cardActions: { flexDirection: "row", alignItems: "center" },
   actionBtn: { marginLeft: 10 },
   cardTitle: {
@@ -826,6 +1086,7 @@ const styles = StyleSheet.create({
     color: "#8D6E63",
     lineHeight: 20,
     marginBottom: 8,
+    fontWeight: "bold",
   },
   cardFooter: {
     flexDirection: "row",
@@ -862,19 +1123,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 20,
     bottom: 30,
+  },
+  // 讓圖片置中在 FAB 裡
+  fabIcon: {
     width: 60,
     height: 60,
-    borderRadius: 30,
-    backgroundColor: "#EC7424",
-    borderWidth: 3,
-    borderColor: "#5E433B",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#5E433B",
-    shadowOffset: { width: 3, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 4,
+    resizeMode: "contain",
+  },
+  // 絕對定位讓圖片重疊
+  fabIconAbsolute: {
+    position: "absolute",
+    top: -2,
+    left: 0,
   },
   modalOverlay: {
     flex: 1,
@@ -955,6 +1215,7 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     padding: 12,
     color: "#4A342E",
+    fontWeight: "bold",
   },
   pixelTextArea: { height: 90, textAlignVertical: "top" },
   pixelBtnRow: { flexDirection: "row", gap: 10, marginTop: 20 },
@@ -975,7 +1236,7 @@ const styles = StyleSheet.create({
     borderColor: "#5E433B",
     padding: 12,
   },
-  customDropdownText: { color: "#8D6E63", fontSize: 14 },
+  customDropdownText: { color: "#8D6E63", fontSize: 14, fontWeight: "bold", },
   customDropdownList: {
     width: "100%",
     backgroundColor: "#FFF",
@@ -984,6 +1245,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: "100%",
     zIndex: 1000,
+
   },
   customDropdownItem: {
     flexDirection: "row",
@@ -993,8 +1255,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: "#5E433B",
   },
-  customDropdownItemText: { color: "#8D6E63", fontSize: 14 },
-  dropdownIcon: { width: 16, height: 16, resizeMode: "contain" },
+  customDropdownItemText: { color: "#8D6E63", fontSize: 14, fontWeight: "bold" },
+  dropdownIcon: { width: 20, height: 20, resizeMode: "contain" },
   emptyContainer: {
     flex: 1,
     alignItems: "center",
@@ -1014,6 +1276,7 @@ const styles = StyleSheet.create({
   // 🌟 全螢幕滿版推到底背景（完全與設計稿一體化）
   fullPageModalContainer: {
     flex: 1,
+
     backgroundColor: "#F5EFE6",
   },
   modalPageHeader: {
@@ -1037,8 +1300,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  pageCancelBtn: { backgroundColor: "#C2EABD" },
-  pageSaveBtn: { backgroundColor: "#EC7424" },
+  pageCancelBtn: { backgroundColor: COLORS.disable },
+  pageSaveBtn: { backgroundColor: COLORS.primary },
   pageCancelBtnText: {
     fontFamily: "PressStart2P",
     fontSize: 14,
@@ -1047,18 +1310,18 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 1,
   },
- pageSaveBtnText: {
+  pageSaveBtnText: {
     fontFamily: "PressStart2P",
     fontSize: 14,
     color: "#FFFFFF",
     fontWeight: "bold",
   },
   pageBtnShadow: {
-    borderRightWidth: 4,
+    borderRightWidth: 2,
     borderBottomWidth: 4,
   },
   pageBtnPressed: {
-    transform: [{ translateY: 2 }, { translateX: 2 }],
+    transform: [{ translateY: 2 },],
     borderRightWidth: 2,
     borderBottomWidth: 2,
   },
@@ -1115,4 +1378,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FDFBF0",
   },
+  caret: { width: 30, height: 30, resizeMode: "contain" },
+  caret_absolute: { position: "absolute", top: 0, left: 0 },
 });
