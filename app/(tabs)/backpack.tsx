@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
-import { Check, Pencil, Plus, Trash2, X } from "lucide-react-native";
+import { Check, Plus, X } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 
 import { COLORS } from "@/constants/theme";
@@ -10,16 +10,16 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   useWindowDimensions,
   View
 } from "react-native";
-// 定義資料型別
+import { SafeAreaView } from "react-native-safe-area-context"; // 定義資料型別
 type TodoItem = { id: string; text: string; completed: boolean };
 type Document = { id: string; uri: string; title: string; note: string };
 
@@ -86,9 +86,9 @@ export default function BackpackScreen() {
   };
 
   // --- 清單邏輯 ---
+  // --- 清單邏輯 ---
   const handleTodoSubmit = () => {
     if (!newTodo.trim()) return;
-    Keyboard.dismiss();
 
     if (editingTodo) {
       const updated = todos.map((t) =>
@@ -98,6 +98,7 @@ export default function BackpackScreen() {
       setEditingTodo(null);
       setNewTodo("");
       saveData(updated, documents);
+      Keyboard.dismiss(); // 🌟 只有「編輯完成」才收起鍵盤
     } else {
       const updated = [
         ...todos,
@@ -106,6 +107,7 @@ export default function BackpackScreen() {
       setTodos(updated);
       setNewTodo("");
       saveData(updated, documents);
+      // 🌟 新增狀態下不呼叫 Keyboard.dismiss()，讓鍵盤保持開啟可繼續輸入！
     }
   };
 
@@ -252,38 +254,54 @@ export default function BackpackScreen() {
       {/* 頂部切換 Tab (在複選模式下隱藏，改為複選工具列) */}
       {!isSelectMode ? (
         <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "todo" && styles.activeTab]}
-            onPress={() => switchTab("todo")}
-          >
-            <Text style={[styles.tabText, activeTab === "todo" && styles.activeTabText]}>
-              準備清單
-            </Text>
-          </TouchableOpacity>
+          <Pressable style={{ flex: 1 }} onPress={() => switchTab("todo")}>
+            {({ pressed }) => (
+              <View style={[styles.tab, activeTab === "todo" && styles.activeTab, pressed ? styles.btnPressed : styles.btnShadow]}>
+                <Text style={[styles.tabText, activeTab === "todo" && styles.activeTabText]}>
+                  準備清單
+                </Text>
+              </View>
+            )}
+          </Pressable>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "wallet" && styles.activeTab]}
-            onPress={() => switchTab("wallet")}
-          >
-            <Text style={[styles.tabText, activeTab === "wallet" && styles.activeTabText]}>
-              數位證件
-            </Text>
-          </TouchableOpacity>
+          <Pressable style={{ flex: 1 }} onPress={() => switchTab("wallet")}>
+            {({ pressed }) => (
+              <View style={[styles.tab, activeTab === "wallet" && styles.activeTab, pressed ? styles.btnPressed : styles.btnShadow]}>
+                <Text style={[styles.tabText, activeTab === "wallet" && styles.activeTabText]}>
+                  數位證件
+                </Text>
+              </View>
+            )}
+          </Pressable>
         </View>
       ) : (
-        /* 🔴 全新：複選模式專用頂部工具列 */
+        /* 🔴 複選模式專用頂部工具列 */
         <View style={styles.batchActionHeader}>
-          <TouchableOpacity onPress={exitSelectMode} style={styles.batchCancelBtn}>
-            <Text style={styles.batchCancelText}>取消</Text>
-          </TouchableOpacity>
-          <Text style={styles.batchTitle}>已選取 {selectedTodoIds.length} 個裝備</Text>
-          <TouchableOpacity
-            onPress={() => setIsDeleteModalVisible(true)}
-            style={styles.batchDeleteBtn}
-          >
-            <Trash2 color="#FFF" size={16} style={{ marginRight: 4 }} />
-            <Text style={styles.batchDeleteText}>丟棄</Text>
-          </TouchableOpacity>
+          {/* 左側：取消按鈕 (固定寬度與對齊) */}
+          <View style={{ flex: 1, alignItems: "flex-start" }}>
+            <Pressable onPress={exitSelectMode}>
+              {({ pressed }) => (
+                <View style={[styles.batchCancelBtn, pressed ? styles.btnPressed : styles.btnShadow]}>
+                  <Text style={styles.batchCancelText}>取消</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+
+          {/* 中間：標題 */}
+          <Text style={styles.batchTitle}>已選取 {selectedTodoIds.length} 個</Text>
+
+          {/* 右側：丟棄按鈕 (固定寬度與對齊) */}
+          <View style={{ flex: 1, alignItems: "flex-end" }}>
+            <Pressable onPress={() => setIsDeleteModalVisible(true)}>
+              {({ pressed }) => (
+                <View style={[styles.batchDeleteBtn, pressed ? styles.btnPressed : styles.btnShadow]}>
+
+                  <Text style={styles.batchDeleteText}>丟棄</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -301,7 +319,7 @@ export default function BackpackScreen() {
         style={{ flex: 1, width: "100%" }} // <--- 補上這一行
         contentContainerStyle={{ width: screenWidth * 2 }}
       >
-        <View style={{ width: screenWidth, height: "100%", overflow: "hidden"}}>
+        <View style={{ width: screenWidth, height: "100%", overflow: "hidden" }}>
           <View
             style={styles.contentTodoContainer}
           >
@@ -314,238 +332,294 @@ export default function BackpackScreen() {
               {todos.map((item) => {
                 const isSelected = selectedTodoIds.includes(item.id);
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={item.id}
-                    style={[
-                      styles.todoItem,
-                      editingTodo?.id === item.id && styles.todoItemEditing,
-                      isSelectMode && isSelected && styles.todoItemCheckedModal
-                    ]}
-                    activeOpacity={0.8}
                     onPress={() => handlePressTodo(item)}
                     onLongPress={() => handleLongPressTodo(item)}
                     delayLongPress={600}
                   >
-                    <View style={styles.todoTextRow}>
-                      {/* 左側勾勾區域 */}
-                      <TouchableOpacity
-                        onPress={() => handleToggleComplete(item)}
-                        style={{ marginRight: 12 }}
+                    {({ pressed }) => (
+                      <View
+                        style={[
+                          styles.todoItem,
+                          editingTodo?.id === item.id && styles.todoItemEditing,
+                          isSelectMode && isSelected && styles.todoItemCheckedModal,
+                          pressed ? styles.btnPressedField : styles.btnShadow // 🌟 行程卡按壓效果
+                        ]}
                       >
-                        {isSelectMode ? (
-                          /* 🔴 複選選取框樣式 */
-                          <View style={[styles.selectCheckbox, isSelected && styles.selectCheckboxActive]}>
-                            {isSelected && <Check color="#FFF" size={14} strokeWidth={3} />}
-                          </View>
-                        ) : (
-                          /* 普通任務狀態勾勾 */
-                          <View style={[styles.customCheckbox, item.completed && styles.customCheckboxChecked]}>
-                            {item.completed && <Check color="#FFF" size={14} strokeWidth={3} />}
-                          </View>
-                        )}
-                      </TouchableOpacity>
-
-                      <Text style={[
-                        styles.todoText,
-                        item.completed && !isSelectMode && styles.todoCompleted,
-                        isSelectMode && isSelected && { color: "#EC7424" }
-                      ]}>
-                        {item.text}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
+                        <View style={styles.todoTextRow}>
+                          {/* 🌟 左側勾勾區域：放大 HitSlop 點擊範圍 */}
+                          <TouchableOpacity
+                            onPress={() => handleToggleComplete(item)}
+                            style={{ padding: 2, paddingHorizontal: 10, marginLeft: -10, marginRight: 2 }}
+                            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                          >
+                            {isSelectMode ? (
+                              /* 🔴 複選模式：維持原本的橘色方框 (若你想連複選都換成同一張圖，也可以套用下方的寫法) */
+                              /* 🌟 普通模式：替換為你的自訂像素圖檔 */
+                              <Image
+                                source={
+                                  item.completed
+                                    ? require("../../img/icon_check.png") // 打勾時的綠色圖檔
+                                    : require("../../img/icon_check.png")       // 未打勾時的空框圖檔
+                                }
+                                style={{ width: 24, height: 24, resizeMode: "contain" }}
+                              />
+                            ) : (
+                              /* 🌟 普通模式：替換為你的自訂像素圖檔 */
+                              <Image
+                                source={
+                                  item.completed
+                                    ? require("../../img/icon_checkActive.png") // 打勾時的綠色圖檔
+                                    : require("../../img/icon_check.png")       // 未打勾時的空框圖檔
+                                }
+                                style={{ width: 24, height: 24, resizeMode: "contain" }}
+                              />
+                            )}
+                          </TouchableOpacity>
+                          <Text style={[
+                            styles.todoText,
+                            item.completed && !isSelectMode && styles.todoCompleted,
+                            isSelectMode && isSelected && { color: COLORS.primary }
+                          ]}>
+                            {item.text}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </Pressable>
                 );
               })}
             </ScrollView>
 
-            {/* 下方：固定在最底部的輸入區（在複選模式下暫時鎖定/隱藏） */}
             {!isSelectMode && (
               <View style={styles.bottomInputContainer}>
                 <View style={styles.inputRow}>
+                  {/* 輸入框 (靜態陰影) */}
                   <TextInput
                     ref={todoInputRef}
-                    style={[styles.pixelInput, editingTodo && styles.pixelInputEditing]}
+                    style={[styles.pixelInput, styles.btnShadow, editingTodo && styles.pixelInputEditing]}
                     placeholder={editingTodo ? "正在修改裝備..." : "新增裝備..."}
+                    placeholderTextColor={COLORS.line2}
                     value={newTodo}
                     onChangeText={setNewTodo}
                     returnKeyType="done"
                     onSubmitEditing={handleTodoSubmit}
                   />
-                  <TouchableOpacity
-                    style={[styles.addBtn, editingTodo && { backgroundColor: "#3498DB" }]}
-                    onPress={handleTodoSubmit}
-                  >
-                    {editingTodo ? <Check color="#FFF" size={24} /> : <Plus color="#FFF" size={24} />}
-                  </TouchableOpacity>
 
+                  {/* 新增/確認按鈕 (動態按壓陰影) */}
+                  <Pressable onPress={handleTodoSubmit}>
+                    {({ pressed }) => (
+                      <View style={[
+                        styles.addBtn,
+                        editingTodo && { backgroundColor: COLORS.primary },
+                        pressed ? styles.btnPressed : styles.btnShadow
+                      ]}>
+                        {editingTodo ? <Check color="#FFF" size={24} /> : <Plus color="#FFF" size={24} />}
+                      </View>
+                    )}
+                  </Pressable>
+
+                  {/* 取消編輯按鈕 (動態按壓陰影) */}
                   {editingTodo && (
-                    <TouchableOpacity
-                      style={[styles.addBtn, { backgroundColor: "#95A5A6" }]}
+                    <Pressable
                       onPress={() => {
                         setEditingTodo(null);
                         setNewTodo("");
                         Keyboard.dismiss();
                       }}
                     >
-                      <X color="#FFF" size={24} />
-                    </TouchableOpacity>
+                      {({ pressed }) => (
+                        <View style={[styles.addBtn, { backgroundColor: COLORS.disable }, pressed ? styles.btnPressed : styles.btnShadow]}>
+                          <X color="#FFF" size={24} />
+                        </View>
+                      )}
+                    </Pressable>
                   )}
                 </View>
               </View>
             )}
           </View>
         </View>
-        <View style={{ width: screenWidth, height: "100%",overflow: "hidden" }}>
+        <View style={{ width: screenWidth, height: "100%", overflow: "hidden" }}>
           <View style={styles.content}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.docGrid}>
               {documents.map((doc) => (
-                <TouchableOpacity
+                <Pressable
                   key={doc.id}
-                  style={styles.polaroidCardContainer}
-                  activeOpacity={0.9}
                   onPress={() => openEditModal(doc)}
                   onLongPress={() => handleLongPressDoc(doc)}
                   delayLongPress={600}
+                  style={({ pressed }) => [
+                    {
+                      width: "48%",
+                      marginBottom: 20,
+                      backgroundColor: "#FFF",
+                      borderWidth: 2,
+                      borderColor: "#4A342E",
+                      padding: 10
+                    },
+                    pressed ? styles.btnPressedField : styles.btnShadow
+                  ]}
                 >
-                  <View style={styles.polaroidShadow} />
-                  <View style={styles.polaroidCard}>
-                    <View style={styles.imageContainer}>
-                      <Image source={{ uri: doc.uri }} style={styles.polaroidImage} />
-                    </View>
-                    <View style={styles.polaroidBottom}>
-                      <Text style={styles.polaroidTitle} numberOfLines={1}>{doc.title}</Text>
-                      <View style={styles.polaroidFooterRow}>
-                        {doc.note && doc.note.trim() ? (
-                          <Text style={styles.polaroidNote} numberOfLines={1}>{doc.note}</Text>
-                        ) : (
-                          <View style={styles.polaroidNoteBlank} />
-                        )}
-                      </View>
-                    </View>
+                  {/* 圖片容器 */}
+                  <View style={{ width: "100%", aspectRatio: 1, backgroundColor: "#FDFBF0", borderWidth: 2, borderColor: "#4A342E", marginBottom: 8 }}>
+                    <Image source={{ uri: doc.uri }} style={{ width: "100%", height: "100%", resizeMode: "cover" }} />
                   </View>
-                </TouchableOpacity>
+
+                  {/* 文字區塊 */}
+                  <Text style={{ fontSize: 14, fontWeight: "bold", color: "#4A342E", marginBottom: 4 }} numberOfLines={1}>
+                    {doc.title}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: "#8D6E63", fontWeight: "bold" }} numberOfLines={1}>
+                    {doc.note || " "}
+                  </Text>
+                </Pressable>
               ))}
             </ScrollView>
 
-            <TouchableOpacity style={styles.fab} onPress={openAddModal}>
-              <Plus color="#FFF" size={32} />
-            </TouchableOpacity>
+            {/* 🌟 底部加號按鈕 (使用你的自訂雙圖片切換) */}
+            <View style={styles.fabContainer}>
+              <Pressable onPress={openAddModal}>
+                {({ pressed }) => (
+                  <View style={pressed ? { transform: [{ translateY: 2 }] } : {}}>
+                    {/* 預設狀態的圖片 */}
+                    <Image
+                      source={require("../../img/button_plus.png")}
+                      style={[styles.fabIcon, { opacity: pressed ? 0 : 1 }]}
+                    />
+                    {/* 按下狀態的圖片 (絕對定位疊在上面) */}
+                    <Image
+                      source={require("../../img/button_plus_pressed.png")}
+                      style={[styles.fabIcon, styles.fabIconAbsolute, { opacity: pressed ? 1 : 0 }]}
+                    />
+                  </View>
+                )}
+              </Pressable>
+            </View>
           </View>
         </View>
       </ScrollView>
 
 
-      {/* 圖片放大檢視 Modal */}
-      <Modal visible={!!selectedImage} transparent animationType="fade">
-        <View style={styles.fullImageOverlay}>
-          <TouchableOpacity style={styles.fullImageCloseBtn} onPress={() => setSelectedImage(null)}>
-            <X color="#FFF" size={32} />
-          </TouchableOpacity>
-          {selectedImage && <Image source={{ uri: selectedImage }} style={styles.fullImage} resizeMode="contain" />}
-        </View>
-      </Modal>
 
-      {/* 新增 / 編輯拍立得 Modal */}
-      <Modal visible={isAddModalVisible} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={styles.keyboardAvoidingView}
+
+      {/* 🌟 滿版由下往上滑出的「新增/編輯數位證件」頁面 (復刻 Adventure) */}
+      <Modal visible={isAddModalVisible} transparent={false} animationType="slide">
+        <SafeAreaView style={styles.fullPageModalContainer}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+
+            {/* 1. 頂部列：返回按鈕 */}
+            <TouchableOpacity
+              onPress={closeAddModal}
+              style={{ width: "100%", paddingHorizontal: 20, paddingTop: Platform.OS === "ios" ? 10 : 20, paddingBottom: 15 }}
             >
-              <View style={styles.modalCardContainerModal}>
-                <View style={styles.modalCard}>
-                  <View style={styles.dragIndicator} />
-                  <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                    <View style={styles.modalHeader}>
-                      <TextInput
-                        style={styles.modalTitleInput}
-                        placeholder="請在此輸入圖片名稱"
-                        placeholderTextColor="#9A8478"
-                        value={modalTitle}
-                        onChangeText={setModalTitle}
-                      />
-                      <Pencil color="#5E433B" size={16} style={{ marginLeft: 6 }} />
+              <Image source={require("../../img/icon_chevronLeft.png")} style={{ height: 16, width: 16 }} resizeMode="contain" />
+            </TouchableOpacity>
+
+            {/* 2. 中間列：文字輸入框與編輯 Icon */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 20, paddingBottom: 2, width: "100%", position: "relative" }}>
+              <TextInput
+                style={[styles.pixelTitleInput, { padding: 10, minWidth: 200, fontFamily: "PressStart2P", fontSize: 16, color: "#4A342E" }]}
+                placeholder="請在此輸入證件名稱"
+                placeholderTextColor="#8D6E63"
+                value={modalTitle}
+                onChangeText={setModalTitle}
+                autoFocus={!editingDoc} // 新增時自動跳出鍵盤
+              />
+              <Image
+                source={require("../../img/icon_edit.png")}
+                style={{ height: 16, width: 16, position: "absolute", right: 20, bottom: 14 }}
+                resizeMode="contain"
+              />
+            </View>
+
+            {/* 3. 底部列：波浪底線 */}
+            <View style={{ paddingHorizontal: 20, width: "100%", marginBottom: 10 }}>
+              <Image source={require("../../img/ad_line.png")} style={{ width: "100%", height: 10, resizeMode: "contain" }} />
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 30, gap: 10 }}
+            >
+              {/* 圖片區塊 */}
+              <Text style={styles.modalLabel}>圖片</Text>
+              {!modalImageUri ? (
+                <TouchableOpacity style={styles.designAddImageFrame} onPress={pickImageInModal}>
+                  <Text style={styles.designAddImageFrameText}>點此上傳圖片+</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.designAddImageFrameActive} onPress={pickImageInModal} activeOpacity={0.9}>
+                  <Image
+                    source={{ uri: modalImageUri }}
+                    // 🌟 關鍵修改：將 resizeMode 改為 "contain" 
+                    style={{ width: "100%", height: "100%", resizeMode: "contain" }}
+                  />
+                </TouchableOpacity>
+              )}
+
+              {/* 備註區塊 */}
+              <Text style={styles.modalLabel}>備註</Text>
+              <TextInput
+                style={[styles.pixelInput, styles.pixelTextArea]}
+                multiline
+                placeholder="請輸入備註..."
+                placeholderTextColor="#8D6E63"
+                value={modalNote}
+                onChangeText={setModalNote}
+              />
+
+              {/* 底部按鈕列：cancel & save */}
+              <View style={styles.modalPageBtnRow}>
+                <Pressable style={{ flex: 1 }} onPress={closeAddModal}>
+                  {({ pressed }) => (
+                    <View style={[styles.pageCustomBtn, styles.pageCancelBtn, pressed ? styles.btnPressed : styles.btnShadow]}>
+                      <Text style={styles.pageCancelBtnText}>cancel</Text>
                     </View>
-                    <Image source={require("../../img/ad_line.png")} style={styles.modalSeparator} />
-                    <Text style={styles.modalLabel}>圖片</Text>
-                    <TouchableOpacity style={styles.imagePickerBox} onPress={pickImageInModal} activeOpacity={0.8}>
-                      {modalImageUri ? (
-                        <Image source={{ uri: modalImageUri }} style={styles.imagePickerPreview} resizeMode="cover" />
-                      ) : (
-                        <Text style={styles.imagePickerText}>點此上傳圖片+</Text>
-                      )}
-                    </TouchableOpacity>
-                    <Text style={styles.modalLabel}>備註</Text>
-                    <TextInput
-                      style={styles.modalNoteInput}
-                      placeholder="請輸入備註..."
-                      placeholderTextColor="#9A8478"
-                      value={modalNote}
-                      onChangeText={setModalNote}
-                      multiline
-                    />
-                  </ScrollView>
-                  <View style={styles.modalBtnRow}>
-                    <View style={styles.modalBtnContainer}>
-                      <View style={[styles.modalBtnShadow, { backgroundColor: "#8A9A84" }]} />
-                      <TouchableOpacity style={[styles.modalBtn, { backgroundColor: "#C2D1BC" }]} onPress={closeAddModal}>
-                        <Text style={styles.modalBtnText}>cancel</Text>
-                      </TouchableOpacity>
+                  )}
+                </Pressable>
+
+                <Pressable style={{ flex: 1 }} onPress={saveDocument}>
+                  {({ pressed }) => (
+                    <View style={[styles.pageCustomBtn, styles.pageSaveBtn, pressed ? styles.btnPressed : styles.btnShadow]}>
+                      <Text style={styles.pageSaveBtnText}>save</Text>
                     </View>
-                    <View style={styles.modalBtnContainer}>
-                      <View style={[styles.modalBtnShadow, { backgroundColor: "#9E4714" }]} />
-                      <TouchableOpacity style={[styles.modalBtn, { backgroundColor: "#EC7424" }]} onPress={saveDocument}>
-                        <Text style={[styles.modalBtnText, { color: "#FFF" }]}>save</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
+                  )}
+                </Pressable>
               </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
+
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
       </Modal>
 
-      {/* 客製化 Y2K 風格「刪除確認視窗」 */}
+      {/* 刪除確認 Modal */}
       <Modal visible={isDeleteModalVisible} transparent animationType="fade">
-        <View style={styles.alertOverlay}>
-          <View style={styles.alertCardContainer}>
-            <View style={styles.alertCardShadow} />
-            <View style={styles.alertCard}>
-              <Text style={styles.alertTitle}>
-                {isSelectMode ? "批量丟棄裝備" : "刪除證件"}
-              </Text>
+        <View style={styles.modalOverlayb}>
+          <View style={[styles.modalCardb, { alignItems: "center", height: "auto" }]}>
+            <Text style={[styles.pixelTitleInputb, { fontSize: 18 }]}>DELETE?</Text>
+            <Text style={{ color: "#8D6E63", fontWeight: "bold" }}>{isSelectMode
+              ? "刪除後裝備將無法復原！"
+              : "刪除後證件將無法復原！"}</Text>
+            {/* 底部按鈕列：cancel & save */}
+            <View style={styles.modalPageBtnRowb}>
+              <Pressable style={{ flex: 1 }} onPress={() => setIsDeleteModalVisible(false)}>
+                {({ pressed }) => (
+                  <View style={[styles.pageCustomBtn, styles.pageCancelBtn, pressed ? styles.pageBtnPressed : styles.pageBtnShadow]}>
+                    <Text style={styles.pageCancelBtnText}>cancel</Text>
+                  </View>
+                )}
+              </Pressable>
 
-              <Image source={require("../../img/ad_line.png")} style={styles.modalSeparator} />
-
-              <Text style={styles.alertMessage}>
-                {isSelectMode
-                  ? `確定要將選中的 ${selectedTodoIds.length} 個裝備從背包中集體丟棄嗎？`
-                  : `確定要將「${deletingDoc?.title}」從背包中丟棄嗎？`}
-              </Text>
-
-              <View style={styles.modalBtnRow}>
-                <View style={styles.modalBtnContainer}>
-                  <View style={[styles.modalBtnShadow, { backgroundColor: "#8A9A84" }]} />
-                  <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#C2D1BC" }]}
-                    onPress={() => setIsDeleteModalVisible(false)}
-                  >
-                    <Text style={styles.modalBtnText}>取消</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.modalBtnContainer}>
-                  <View style={[styles.modalBtnShadow, { backgroundColor: "#9E4714" }]} />
-                  <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#EC7424" }]}
-                    onPress={confirmDelete}
-                  >
-                    <Text style={[styles.modalBtnText, { color: "#FFF" }]}>丟棄</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <Pressable style={{ flex: 1 }} onPress={confirmDelete}>
+                {({ pressed }) => (
+                  <View style={[styles.pageCustomBtnb, styles.pageSaveBtn, pressed ? styles.pageBtnPressed : styles.pageBtnShadow]}>
+                    <Text style={styles.pageCancelBtnText}>OK</Text>
+                  </View>
+                )}
+              </Pressable>
             </View>
           </View>
         </View>
@@ -557,14 +631,27 @@ export default function BackpackScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60 },
   tabContainer: { flexDirection: "row", paddingHorizontal: 20, gap: 10, height: 46, alignItems: "center" },
-  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#FFF", gap: 8 },
-  activeTab: { backgroundColor: "#4A342E" },
+  tab: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 10, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#FFF", gap: 8 }, activeTab: { backgroundColor: COLORS.line2 },
   tabText: { color: "#4A342E", fontWeight: "bold", fontSize: 14 },
   activeTabText: { color: "#FFF" },
   separatorContainer: { marginTop: 10 },
   separator: { width: "100%", height: 10, resizeMode: "contain" },
   content: { flex: 1, padding: 20 },
-
+  // 🌟 核心按壓與陰影系統 (給 Tabs、按鈕、裝備卡片共用)
+  btnShadow: {
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+  },
+  btnPressed: {
+    transform: [{ translateY: 2 }],
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+  },
+  btnPressedField: {
+    transform: [{ translateY: 2 }],
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+  },
   // 🔴 全新：複選頂部工具列樣式
   batchActionHeader: {
     flexDirection: "row",
@@ -572,18 +659,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     height: 46,
-    backgroundColor: "#FDFBF0",
+    backgroundColor: COLORS.bg,
   },
   batchTitle: { fontSize: 15, fontWeight: "bold", color: "#4A342E" },
-  batchCancelBtn: { paddingVertical: 6, paddingHorizontal: 12, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#FFF" },
-  batchCancelText: { color: "#4A342E", fontWeight: "bold", fontSize: 13 },
-  batchDeleteBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 6, paddingHorizontal: 12, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#E74C3C" },
+  batchCancelText: { color: "#FFF", fontWeight: "bold", fontSize: 13 },
   batchDeleteText: { color: "#FFF", fontWeight: "bold", fontSize: 13 },
-
+  batchCancelBtn: { width: 80, alignItems: "center", paddingVertical: 8, borderWidth: 2, borderColor: "#4A342E", backgroundColor: COLORS.disable },
+  batchDeleteBtn: { width: 80, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 8, borderWidth: 2, borderColor: "#4A342E", backgroundColor: COLORS.primary },
   contentTodoContainer: { flex: 1 },
   todoListScroll: { flex: 1, paddingHorizontal: 20, paddingTop: 15 },
   bottomInputContainer: {
-    backgroundColor: "#FDFBF0",
+    backgroundColor: COLORS.bg,
     paddingHorizontal: 20,
     paddingTop: 14,
     paddingBottom: Platform.OS === "ios" ? 34 : 20,
@@ -592,23 +678,19 @@ const styles = StyleSheet.create({
   },
 
   inputRow: { flexDirection: "row", gap: 8 },
-  pixelInput: { flex: 1, backgroundColor: "#FFF", borderWidth: 2, borderColor: "#4A342E", padding: 10, fontSize: 16, color: "#4A342E", fontWeight: "bold" },
-  pixelInputEditing: { borderColor: "#3498DB", backgroundColor: "#F4F9FD" },
-  addBtn: { backgroundColor: "#F39C12", paddingHorizontal: 15, borderWidth: 2, borderColor: "#4A342E", justifyContent: "center", alignItems: "center" },
-
+  pixelInput: { flex: 1, backgroundColor: "#FFF", borderWidth: 2, borderColor: "#4A342E", padding: 10, fontSize: 14, color: "#4A342E", fontWeight: "bold" },
+  pixelInputEditing: { borderColor: COLORS.primary, backgroundColor: "#F4F9FD" },
+  addBtn: { width: 50, height: 50, backgroundColor: COLORS.primary, borderWidth: 2, borderColor: "#4A342E", justifyContent: "center", alignItems: "center" },
   todoItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFF", padding: 15, borderWidth: 2, borderColor: "#4A342E", marginBottom: 10 },
-  todoItemEditing: { borderColor: "#3498DB", borderWidth: 2 },
-  todoItemCheckedModal: { borderColor: "#EC7424", backgroundColor: "#FFFDF9" }, // 選中時的復古粗橘框
+  todoItemEditing: { borderColor: COLORS.primary, borderWidth: 2 },
+  todoItemCheckedModal: { borderColor: COLORS.primary, backgroundColor: "#FFFDF9" }, // 選中時的復古粗橘框
   todoTextRow: { flexDirection: "row", alignItems: "center", flex: 1 },
   todoText: { fontSize: 16, color: "#4A342E", fontWeight: "bold", flex: 1 },
-  todoCompleted: { textDecorationLine: "line-through", color: "#BDC3C7" },
-
-  customCheckbox: { width: 22, height: 22, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#FFF", justifyContent: "center", alignItems: "center" },
-  customCheckboxChecked: { backgroundColor: "#4CAF50" },
+  todoCompleted: { textDecorationLine: "line-through", color: COLORS.disable },
 
   // 🔴 複選選取框樣式（亮橘像素風）
   selectCheckbox: { width: 22, height: 22, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#FFF", justifyContent: "center", alignItems: "center" },
-  selectCheckboxActive: { backgroundColor: "#EC7424" },
+  selectCheckboxActive: { backgroundColor: COLORS.primary },
 
   docGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", paddingHorizontal: 4, paddingBottom: 120 },
   polaroidCardContainer: { width: "48%", marginBottom: 20, position: "relative" },
@@ -621,20 +703,54 @@ const styles = StyleSheet.create({
   polaroidFooterRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   polaroidNote: { fontSize: 12, color: "#8D6E63", height: 16, lineHeight: 16, flex: 1, marginRight: 6 },
   polaroidNoteBlank: { height: 16, flex: 1 },
-  fab: { position: "absolute", right: 20, bottom: 30, width: 60, height: 60, borderRadius: 30, backgroundColor: "#EC7424", borderWidth: 3, borderColor: "#5E433B", justifyContent: "center", alignItems: "center", shadowColor: "#5E433B", shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0, elevation: 4 },
   fullImageOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", justifyContent: "center", alignItems: "center" },
   fullImage: { width: "95%", height: "80%" },
   fullImageCloseBtn: { position: "absolute", top: 50, right: 30, zIndex: 10 },
-
+  // 🌟 將原本的 fab 樣式替換成這兩個
+  // 🌟 更新 FAB 樣式，拔除原本的框線與背景色，完全交給圖片顯示
+  fabContainer: { position: "absolute", right: 20, bottom: 30 },
+  fabIcon: {
+    width: 60,  // 👈 這裡的大小你可以依照你的圖檔比例微調 (例如 60~70)
+    height: 60,
+    resizeMode: "contain"
+  },
+  fabIconAbsolute: {
+    position: "absolute",
+    top: -2,
+    left: 0
+  }, fab: {
+    width: 60,
+    height: 60,
+    backgroundColor: "#EC7424",
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    justifyContent: "center",
+    alignItems: "center"
+  },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end", alignItems: "center" },
+  modalOverlayb: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   keyboardAvoidingView: { width: "100%", justifyContent: "flex-end" },
   modalCardContainerModal: { width: "100%" },
   modalCard: { width: "100%", maxHeight: 520, backgroundColor: "#FDFBF0", borderWidth: 3, borderColor: "#5E433B", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingHorizontal: 20, paddingBottom: Platform.OS === "ios" ? 40 : 24, paddingTop: 10 },
+  modalCardb: {
+    width: "90%",
+    backgroundColor: "#FFFDF9",
+    borderWidth: 3,
+    borderColor: "#5E433B",
+    padding: 20,
+    borderRadius: 10,
+    height: 550,
+    overflow: "hidden",
+  },
   dragIndicator: { width: 40, height: 5, backgroundColor: "#5E433B", borderRadius: 2.5, alignSelf: "center", marginBottom: 10 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 4 },
   modalTitleInput: { flex: 1, textAlign: "center", fontSize: 16, color: "#5E433B", fontWeight: "bold" },
   modalSeparator: { width: "100%", height: 8, resizeMode: "contain", marginBottom: 12 },
-  modalLabel: { fontSize: 14, fontWeight: "bold", color: "#5E433B", marginBottom: 6 },
   imagePickerBox: { width: "100%", height: 150, backgroundColor: "#F3EFE6", borderWidth: 2, borderColor: "#5E433B", justifyContent: "center", alignItems: "center", marginBottom: 14, overflow: "hidden" },
   imagePickerPreview: { width: "100%", height: "100%" },
   imagePickerText: { color: "#5E433B", fontSize: 14, fontWeight: "500" },
@@ -645,10 +761,144 @@ const styles = StyleSheet.create({
   modalBtn: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderWidth: 2, borderColor: "#5E433B", alignItems: "center", justifyContent: "center", borderRadius: 0 },
   modalBtnText: { fontWeight: "bold", fontSize: 14 },
 
-  alertOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
-  alertCardContainer: { width: "80%", position: "relative" },
-  alertCardShadow: { position: "absolute", top: 6, left: 6, right: -6, bottom: -6, backgroundColor: "#5E433B" },
-  alertCard: { width: "100%", backgroundColor: "#FDFBF0", borderWidth: 2, borderColor: "#5E433B", padding: 20, alignItems: "center" },
-  alertTitle: { fontSize: 18, fontWeight: "bold", color: "#5E433B", marginBottom: 6 },
-  alertMessage: { fontSize: 14, color: "#4A342E", textAlign: "center", lineHeight: 20, marginTop: 4, marginBottom: 20 },
+  // --- 🌟 滿版編輯 Modal (復刻 Adventure) 專用樣式 ---
+  fullPageModalContainer: { flex: 1, backgroundColor: COLORS.bg },
+  pixelTitleInput: { textAlign: "center", fontWeight: "bold" },
+  pixelTitleInputb: {
+    fontFamily: "PressStart2P",
+    fontSize: 16,
+    color: "#5E433B",
+    textAlign: "center",
+    padding: 10,
+  },
+  modalLabel: { fontSize: 14, fontWeight: "bold", color: "#4A342E", marginBottom: 6, marginTop: 10 },
+  designAddImageFrameText: { fontSize: 14, color: "#8D6E63", fontWeight: "bold" },
+  pixelTextArea: { height: 90, textAlignVertical: "top" },
+  // ... 其他樣式保留
+
+  designAddImageFrame: { width: "100%", height: 110, borderWidth: 2, borderColor: "#4A342E", backgroundColor: "#FFF", justifyContent: "center", alignItems: "center" },
+
+  // 🌟 將 Active 狀態的框框改成「左右撐滿、高度自動等比例放大」
+  designAddImageFrameActive: {
+    width: "100%",
+    aspectRatio: 1, // 變成完美的 1:1 正方形，超級大！
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    backgroundColor: COLORS.bg2,
+    overflow: "hidden", // 確保圖片不會超出粗框的圓角或邊界
+  },
+
+  // ... 其餘往下保留
+  modalPageBtnRow: { flexDirection: "row", gap: 16, marginTop: 28, paddingBottom: 10 },
+  modalPageBtnRowb: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 28,
+    paddingBottom: 10,
+  },
+  pageCustomBtn: { borderWidth: 2, borderColor: "#4A342E", paddingVertical: 12, alignItems: "center", justifyContent: "center" },
+  pageCustomBtnb: {
+    borderWidth: 2,
+    borderColor: "#4A342E",
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pageCancelBtn: { backgroundColor: COLORS.disable },
+  pageSaveBtn: { backgroundColor: COLORS.primary },
+  pageCancelBtnText: {
+    fontSize: 14, color: "#FFFFFF", fontFamily: "PressStart2P", textShadowColor: "rgba(0,0,0,0.2)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
+  },
+  pageSaveBtnText: {
+    fontSize: 14, color: "#FFFFFF", fontFamily: "PressStart2P", textShadowColor: "rgba(0,0,0,0.2)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
+  },
+  pageCancelBtnTextb: {
+    fontFamily: "PressStart2P",
+    fontSize: 14,
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0,0,0,0.2)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 1,
+  },
+  pageSaveBtnTextb: {
+    fontFamily: "PressStart2P",
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "bold",
+  },
+  // --- 🌟 刪除確認視窗 (完全還原圖片風格) ---
+  alertOverlay: { flex: 1, backgroundColor: "rgba(30, 25, 22, 0.85)", justifyContent: "center", alignItems: "center" },
+  alertCardContainer: { width: "85%", alignSelf: "center", position: "relative" },
+  alertCardShadow: { position: "absolute", top: 6, left: 6, right: -6, bottom: -6, backgroundColor: "#362A25" }, // 極深咖啡色底影
+  alertCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 3,
+    borderColor: "#362A25",
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    alignItems: "center"
+  },
+
+  // 標題與文字
+  alertTitlePixel: {
+    fontFamily: "PressStart2P", // 💡 若專案有像素字體請解除註解這行
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#5E433B",
+    letterSpacing: 2,
+    marginBottom: 6
+  },
+  alertMessageText: {
+    fontSize: 15,
+    color: "#8D6E63",
+    fontWeight: "bold",
+    marginBottom: 25,
+    textAlign: "center"
+  },
+
+  // 按鈕排版與外觀
+  alertBtnRow: { flexDirection: "row", gap: 15, width: "100%" },
+  alertCancelBtn: {
+    backgroundColor: "#C2D1BC", // 圖片的淺綠色
+    borderWidth: 3,
+    borderColor: "#362A25",
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  alertOkBtn: {
+    backgroundColor: "#EC7424", // 圖片的橘色
+    borderWidth: 3,
+    borderColor: "#362A25",
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  // 按鈕專屬動態陰影
+  alertBtnShadow: { borderRightWidth: 3, borderBottomWidth: 5 },
+  alertBtnPressed: { transform: [{ translateY: 3 }], borderRightWidth: 3, borderBottomWidth: 2 },
+
+  // 按鈕文字
+  alertBtnTextPixel: {
+    fontFamily: "PressStart2P", // 💡 若專案有像素字體請解除註解這行
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+    letterSpacing: 1
+  },
+  pageBtnShadow: {
+    borderRightWidth: 2,
+    borderBottomWidth: 4,
+  },
+  pageBtnPressed: {
+    transform: [{ translateY: 2 },],
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+  },
 });

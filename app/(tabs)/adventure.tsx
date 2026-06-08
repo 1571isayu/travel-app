@@ -512,7 +512,7 @@ export default function AdventureScreen() {
             />
           ) : (
             // 顯示狀態：可點擊觸發編輯
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 setTempName(name || "");
                 setIsEditingName(true);
@@ -766,7 +766,7 @@ export default function AdventureScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 20, paddingBottom: 8, width: "100%", position: "relative" }}>
               {/* 文字置中 */}
               <TextInput
-                style={[styles.pixelTitleInput, { padding: 0 }]}
+                style={[styles.pixelTitleInputCH, { padding: 0 }]}
                 placeholder="請在此輸入目的地"
                 placeholderTextColor="#8D6E63"
                 value={taskTitle}
@@ -960,16 +960,25 @@ export default function AdventureScreen() {
       <Modal visible={isDeleteModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { alignItems: "center", height: "auto" }]}>
-            <Text style={[styles.pixelTitleInput, { fontSize: 18 }]}>DELETE？</Text>
-            <Image source={require("../../img/ad_line.png")} style={styles.modalSeparator} />
-            <Text style={{ color: "#8D6E63", marginBottom: 20 }}>刪除後此行程無法復原！</Text>
-            <View style={styles.pixelBtnRow}>
-              <TouchableOpacity style={[styles.pixelBtn, { backgroundColor: "#D7CCC8" }]} onPress={() => setIsDeleteModalVisible(false)}>
-                <Text style={styles.pixelBtnText}>CANCEL</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.pixelBtn, { backgroundColor: "#E74C3C" }]} onPress={confirmDelete}>
-                <Text style={[styles.pixelBtnText, { color: "#FFF" }]}>OK</Text>
-              </TouchableOpacity>
+            <Text style={[styles.pixelTitleInput, { fontSize: 18 }]}>DELETE?</Text>
+            <Text style={{ color: "#8D6E63",  fontWeight: "bold" }}>刪除後此行程無法復原！</Text>
+            {/* 底部按鈕列：cancel & save */}
+            <View style={styles.modalPageBtnRow}>
+              <Pressable style={{ flex: 1 }} onPress={() => setIsDeleteModalVisible(false)}>
+                {({ pressed }) => (
+                  <View style={[styles.pageCustomBtn, styles.pageCancelBtn, pressed ? styles.pageBtnPressed : styles.pageBtnShadow]}>
+                    <Text style={styles.pageCancelBtnText}>cancel</Text>
+                  </View>
+                )}
+              </Pressable>
+
+              <Pressable style={{ flex: 1 }} onPress={confirmDelete}>
+                {({ pressed }) => (
+                  <View style={[styles.pageCustomBtn, styles.pageSaveBtn, pressed ? styles.pageBtnPressed : styles.pageBtnShadow]}>
+                    <Text style={styles.pageCancelBtnText}>OK</Text>
+                  </View>
+                )}
+              </Pressable>
             </View>
           </View>
         </View>
@@ -1072,7 +1081,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 5,
   },
-  cardTime: { fontSize: 13, color: "#8D6E63" , fontWeight: "bold"},
+  cardTime: { fontSize: 13, color: "#8D6E63", fontWeight: "bold" },
   cardActions: { flexDirection: "row", alignItems: "center" },
   actionBtn: { marginLeft: 10 },
   cardTitle: {
@@ -1159,6 +1168,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   pixelTitleInput: {
+    fontFamily: "PressStart2P",
+    fontSize: 16,
+    color: "#5E433B",
+    textAlign: "center",
+    padding: 10,
+  },
+  pixelTitleInputCH: {
     fontSize: 16,
     fontWeight: "bold",
     color: "#5E433B",
