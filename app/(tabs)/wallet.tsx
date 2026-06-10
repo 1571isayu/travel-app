@@ -6,6 +6,7 @@ import {
   collection,
   doc,
   deleteDoc as fsDeleteDoc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -182,17 +183,57 @@ export default function WalletScreen() {
 
     const startListening = (resolvedId: string) => {
       setAdventureId(resolvedId);
+
+      // 🌟 1. 處理成員與頭像 (加入了去 users 表抓圖的邏輯)
+      // 🌟 完整覆蓋這個 membersUnsub 區塊
       membersUnsub = onSnapshot(doc(db, "adventures", resolvedId), async (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           const membersArray: any[] = data.members || [];
+
           if (membersArray.length > 0) {
-            setMembers(membersArray.map((m) => ({ id: m.uid || m.id, name: m.name || m.displayName, avatar: m.avatar || m.photoURL })));
-            return;
+            // 加上加上明確的型別定義避免 TS 報錯
+            const enrichedMembers: any[] = await Promise.all(
+              membersArray.map(async (m: any) => {
+                const memberUid = typeof m === "string" ? m : (m.uid || m.id);
+
+                if (!memberUid) {
+                  return { id: "unknown", name: m?.name || "未知", characterId: null, avatar: null };
+                }
+
+                try {
+                  // 🌟 這裡加上 as string 避免 TypeScript 紅字
+                  const userSnap = await getDoc(doc(db, "users", memberUid as string));
+                  if (userSnap.exists()) {
+                    const u = userSnap.data();
+                    return {
+                      id: memberUid,
+                      uid: memberUid,
+                      name: u.displayName || u.name || m.name || m.displayName || "冒險者",
+                      characterId: u.characterId || u.avatar || null,
+                      avatar: u.characterId || u.avatar || null,
+                    };
+                  }
+                } catch (e) {
+                  console.warn("抓取分帳成員頭像失敗:", e);
+                }
+
+                return {
+                  id: memberUid,
+                  uid: memberUid,
+                  name: m.name || m.displayName || "冒險者",
+                  characterId: m.characterId || m.avatar || m.photoURL || null,
+                  avatar: m.avatar || m.characterId || m.photoURL || null
+                };
+              })
+            );
+
+            setMembers(enrichedMembers);
           }
         }
       });
 
+      // 2. 處理交易紀錄 (保留你原本寫好的完美邏輯)
       const txQuery = query(collection(db, "adventures", resolvedId, "transactions"), orderBy("createdAt", "desc"));
       txUnsub = onSnapshot(txQuery, (snap) => {
         const list: Transaction[] = [];
@@ -1574,7 +1615,7 @@ const addStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 50,
   },
   backBtn: { marginRight: 16, paddingRight: 8 },
   backText: { fontSize: 22, color: "#5E433B", fontWeight: "bold" },

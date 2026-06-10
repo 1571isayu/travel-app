@@ -360,6 +360,7 @@ export default function AdventureScreen() {
         const itineraryRef = collection(db, "adventures", id as string, "itinerary");
         await addDoc(itineraryRef, {
           ...newItemData,
+          imageUris: newItemData.imageUris, // 確保這行真的傳入資料
           day: currentDay,
           createdBy: currentUid, // 👈 🌟 使用剛剛抓到的真實 UID 寫入行程
         });
