@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect, useGlobalSearchParams } from "expo-router";
-
 import {
   arrayRemove,
   doc,
@@ -15,11 +14,11 @@ import {
   Modal,
   ScrollView,
   Share,
-  StyleSheet,
-  Text,
+  StyleSheet, Switch, Text,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View
+} from "react-native"; // 記得匯入 Switch 元件
+import { useTheme } from "../../context/ThemeContext"; // 確保路徑正確
 import { db } from "../../firebaseConfig";
 
 import { COLORS } from "@/constants/theme";
@@ -78,6 +77,21 @@ const TUTORIAL_STEPS = [
 // 主元件
 // ─────────────────────────────────────────────
 export default function TeamScreen() {
+  // 取得全域深色模式狀態與切換函式
+  const { isDarkMode, toggleTheme } = useTheme();
+
+  // 🌟 動態顏色設定：依照 isDarkMode 決定要回傳什麼顏色
+  const themeColors = {
+    line: isDarkMode ? "#F2EDE4" : "#5E433B",
+    line2: isDarkMode ? "#C8B8A2" : "#8D6E63",
+    primary: isDarkMode ? "#EC7424" : "#EC7424",
+    primary_pressed: isDarkMode ? "#D6631D" : "#D6631D",
+    secondary: isDarkMode ? "#F6E3BD" : "#F6E3BD",
+    disable: isDarkMode ? "#C5D8BA" : "#C5D8BA",
+    bg: isDarkMode ? "#2C2C2C" : "#F4F0E8",
+    bg2: isDarkMode ? "#3D3D3D" : "#FFFDF9",
+  };
+
   const { id, name } = useGlobalSearchParams();
 
   // 本機個人資料（永遠以這份為準顯示自己頭像）
@@ -241,8 +255,8 @@ export default function TeamScreen() {
           </View>
         )}
         <View style={styles.memberInfo}>
-          <Text style={styles.memberName}>{displayName}</Text>
-          {isLeader(m.uid) && <Text style={styles.memberBadge}>隊長</Text>}
+          <Text style={[styles.memberName, { color: themeColors.line }]}>{displayName}</Text>
+          {isLeader(m.uid) && <Text style={[styles.memberBadge, { color: themeColors.primary }]}>隊長</Text>}
         </View>
       </View>
     );
@@ -257,14 +271,14 @@ export default function TeamScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         {/* ── 頂部自己的大頭像區 ── */}
         <View style={styles.avatarSection}>
-          <View style={styles.avatarWrapper}>
+          <View style={[styles.avatarWrapper, , { borderColor: themeColors.line }]}>
             {myAvatar && getCharacterSource(myAvatar) ? (
               <Image
                 source={getCharacterSource(myAvatar)}
@@ -276,13 +290,12 @@ export default function TeamScreen() {
               </View>
             )}
           </View>
-          <Text style={styles.avatarName}>{myName.toUpperCase()}</Text>
+          <Text style={[styles.avatarName, { color: themeColors.line }]}>{myName.toUpperCase()}</Text>
         </View>
 
         {/* ── SETTING 卡片 ── */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>SETTING</Text>
-
+        <View style={[styles.card, { backgroundColor: themeColors.bg2, borderColor: themeColors.line }]}>
+          <Text style={[styles.cardTitle, { color: themeColors.line }]}>SETTING</Text>
           <TouchableOpacity
             style={styles.menuRow}
             onPress={() =>
@@ -290,8 +303,12 @@ export default function TeamScreen() {
             }
           >
             <View style={styles.menuLeft}>
-              <Image source={require("../../img/icon_edit.png")} style={{ height: 16, width: 16 }} resizeMode="contain" />
-              <Text style={styles.menuText}>編輯個人檔案</Text>
+              <Image
+                source={isDarkMode ? require("../../img/icon_edit_dark.png") : require("../../img/icon_edit.png")}
+                style={{ height: 16, width: 16 }}
+                resizeMode="contain"
+              />
+              <Text style={[styles.menuText, { color: themeColors.line }]}>編輯個人檔案</Text>
             </View>
             <Text style={styles.menuChevron}>›</Text>
           </TouchableOpacity>
@@ -303,27 +320,61 @@ export default function TeamScreen() {
             onPress={() => setTutorialVisible(true)}
           >
             <View style={styles.menuLeft}>
-              <Image source={require("../../img/icon_help.png")} style={{ height: 18, width: 18 }} resizeMode="contain" />
-              <Text style={styles.menuText}>使用教學</Text>
+              <Image
+                source={isDarkMode ? require("../../img/icon_help_dark.png") : require("../../img/icon_help.png")}
+                style={{ height: 18, width: 18 }}
+                resizeMode="contain"
+              />
+              <Text style={[styles.menuText, { color: themeColors.line }]}>使用教學</Text>
             </View>
             <Text style={styles.menuChevron}>›</Text>
+          </TouchableOpacity>
+
+
+          <View style={styles.divider} />
+
+          {/* 🌟 新增的深色模式切換按鈕 */}
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={toggleTheme}
+            activeOpacity={0.8}
+          >
+            <View style={styles.menuLeft}>
+              {/* 根據模式換小圖示 */}
+              <Image
+                source={isDarkMode ? require("../../img/icon_moon_dark.png") : require("../../img/icon_moon.png")}
+                style={{ height: 18, width: 18 }}
+                resizeMode="contain"
+              />
+              <Text style={[styles.menuText, { color: themeColors.line }]}>深色模式</Text>
+            </View>
+            {/* 內建的切換開關 */}
+            <Switch
+              value={isDarkMode}
+              onValueChange={toggleTheme}
+              trackColor={{ false: "#D7CCC8", true: "#EC7424" }}
+              thumbColor={"#FFF"}
+            />
           </TouchableOpacity>
         </View>
 
         {/* ── TEAM MEMBER 卡片 ── */}
-        {/* ── TEAM MEMBER 卡片 ── */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: themeColors.bg2, borderColor: themeColors.line }]}>
           <View style={styles.cardTitleRow}>
-            <Text style={styles.cardTitle}>TEAM MEMBER</Text>
+            <Text style={[styles.cardTitle, { color: themeColors.line }]}>TEAM MEMBER</Text>
             <TouchableOpacity onPress={onShare} style={styles.inviteBtn}>
-              <Image source={require("../../img/icon_invite.png")} style={{ height: 20, width: 20 }} resizeMode="contain" />
+              <Image
+                source={isDarkMode ? require("../../img/icon_invite_dark.png") : require("../../img/icon_invite.png")}
+                style={{ height: 20, width: 20 }}
+                resizeMode="contain"
+              />
             </TouchableOpacity>
           </View>
 
 
 
           {members.length === 0 ? (
-            <Text style={styles.emptyMember}>尚無成員資料</Text>
+            <Text style={[styles.emptyMember, { color: themeColors.line }]}>尚無成員資料</Text>
           ) : (
             sortedMembers.map((m, idx) => renderMember(m, idx))
           )}
@@ -335,7 +386,7 @@ export default function TeamScreen() {
             onPress={() => setLeaveConfirmVisible(true)}
           >
             <Image source={require("../../img/icon_exit.png")} style={{ height: 16, width: 16 }} resizeMode="contain" />
-            <Text style={styles.leaveText}>離開隊伍</Text>
+            <Text style={[styles.leaveText, { color: themeColors.primary }]}>離開隊伍</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -435,7 +486,7 @@ const styles = StyleSheet.create({
   avatarImg: { width: "100%", height: "100%" },
   avatarPlaceholder: { flex: 1, backgroundColor: "#D7CCC8", justifyContent: "center", alignItems: "center" },
   bigPlaceholderQuestion: { fontSize: 32, fontWeight: "bold", color: BROWN },
-  avatarName: { fontFamily: "PressStart2P", fontSize: 14, color: BROWN },
+  avatarName: { fontWeight: "bold", fontSize: 14, color: BROWN },
 
   // 卡片
   card: {

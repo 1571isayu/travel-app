@@ -3,7 +3,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from "react";
 import { AppProvider } from "../context/AppContext";
-
+import { ThemeProvider } from "../context/ThemeContext";
 
 // 阻止啟動畫面自動隱藏，直到字體準備好
 SplashScreen.preventAutoHideAsync();
@@ -27,9 +27,11 @@ export default function RootLayout() {
   }
   
   return (
-    <AppProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </AppProvider>
+    </ThemeProvider>
   );
 
 }
