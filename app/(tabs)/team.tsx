@@ -159,6 +159,9 @@ export default function TeamScreen() {
 
         console.log("✅ 補強後的成員資料:", enriched);
         setMembers(enriched);
+
+        // 🌟 核心修改：把查好的完美頭像名單，順手存進手機保險箱！
+        await AsyncStorage.setItem("@global_enriched_members", JSON.stringify(enriched));
       },
     );
     return () => unsub();
@@ -317,7 +320,7 @@ export default function TeamScreen() {
             </TouchableOpacity>
           </View>
 
-          
+
 
           {members.length === 0 ? (
             <Text style={styles.emptyMember}>尚無成員資料</Text>
@@ -405,7 +408,7 @@ const CARD_BG = "#FDFAF2";
 const ORANGE = "#EC7424";
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor:COLORS.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg },
   scrollContent: {
     paddingTop: 60,
     paddingHorizontal: 20,

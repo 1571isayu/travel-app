@@ -6,12 +6,11 @@ import {
   collection,
   doc,
   deleteDoc as fsDeleteDoc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
-  updateDoc,
+  updateDoc
 } from "firebase/firestore";
 import { ChevronDown, ChevronRight } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
@@ -37,7 +36,19 @@ import { db } from "../../firebaseConfig";
 
 import { COLORS } from "@/constants/theme";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// ─────────────────────────────────────────────
+// 角色圖對照表（確保這頁也懂怎麼翻譯動物頭像）
+// ─────────────────────────────────────────────
+const CHARACTER_MAP: Record<string, any> = {
+  bear: require("../../character/character_bear.gif"),
+  cat: require("../../character/character_cat.gif"),
+};
 
+function getCharacterSource(characterId: string | null | undefined) {
+  if (!characterId) return null;
+  const key = String(characterId).trim();
+  return CHARACTER_MAP[key] ?? null;
+}
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Member = { id: string; name: string; avatar?: string };
@@ -136,6 +147,7 @@ const calcDebts = (txs: Transaction[], members: Member[]): DebtEntry[] => {
   return debts;
 };
 
+
 // ─── Avatar Component ─────────────────────────────────────────────────────────
 
 function Avatar({ member, size = 44 }: { member: Member; size?: number }) {
@@ -147,9 +159,14 @@ function Avatar({ member, size = 44 }: { member: Member; size?: number }) {
     borderColor: "#5E433B",
   } as const;
 
-  if (member.avatar) {
-    return <Image source={{ uri: member.avatar }} style={style} />;
+  // 🌟 讓 Avatar 知道要去對照表拿實體圖片！
+  const avatarSource = getCharacterSource(member.avatar);
+
+  if (avatarSource) {
+    // 🌟 這裡改成直接吃 source，不要再用 {{ uri: ... }} 了！
+    return <Image source={avatarSource} style={style} />;
   }
+
   return (
     <View style={[style, mainStyles.avatarFallback]}>
       <Text style={[mainStyles.avatarInitial, { fontSize: size * 0.38 }]}>
@@ -178,62 +195,30 @@ export default function WalletScreen() {
   const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
 
   useEffect(() => {
-    let membersUnsub: () => void = () => { };
     let txUnsub: () => void = () => { };
 
     const startListening = (resolvedId: string) => {
       setAdventureId(resolvedId);
 
-      // 🌟 1. 處理成員與頭像 (加入了去 users 表抓圖的邏輯)
-      // 🌟 完整覆蓋這個 membersUnsub 區塊
-      membersUnsub = onSnapshot(doc(db, "adventures", resolvedId), async (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          const membersArray: any[] = data.members || [];
+      // 🌟 1. 改用「保險箱」直接拿取 TeamScreen 準備好的完美名單！
+      AsyncStorage.getItem("@global_enriched_members").then((str) => {
+        if (str) {
+          const cachedMembers = JSON.parse(str);
 
-          if (membersArray.length > 0) {
-            // 加上加上明確的型別定義避免 TS 報錯
-            const enrichedMembers: any[] = await Promise.all(
-              membersArray.map(async (m: any) => {
-                const memberUid = typeof m === "string" ? m : (m.uid || m.id);
+          // 安全格式轉換，統一塞給 member.avatar
+          const safeMembers = cachedMembers.map((m: any) => ({
+            id: m.uid || m.id,
+            uid: m.uid || m.id,
+            name: m.name || m.displayName || "冒險者",
+            // 把 TeamScreen 查好的 characterId 倒給 avatar
+            avatar: m.characterId || m.avatar || null,
+          }));
 
-                if (!memberUid) {
-                  return { id: "unknown", name: m?.name || "未知", characterId: null, avatar: null };
-                }
-
-                try {
-                  // 🌟 這裡加上 as string 避免 TypeScript 紅字
-                  const userSnap = await getDoc(doc(db, "users", memberUid as string));
-                  if (userSnap.exists()) {
-                    const u = userSnap.data();
-                    return {
-                      id: memberUid,
-                      uid: memberUid,
-                      name: u.displayName || u.name || m.name || m.displayName || "冒險者",
-                      characterId: u.characterId || u.avatar || null,
-                      avatar: u.characterId || u.avatar || null,
-                    };
-                  }
-                } catch (e) {
-                  console.warn("抓取分帳成員頭像失敗:", e);
-                }
-
-                return {
-                  id: memberUid,
-                  uid: memberUid,
-                  name: m.name || m.displayName || "冒險者",
-                  characterId: m.characterId || m.avatar || m.photoURL || null,
-                  avatar: m.avatar || m.characterId || m.photoURL || null
-                };
-              })
-            );
-
-            setMembers(enrichedMembers);
-          }
+          setMembers(safeMembers);
         }
       });
 
-      // 2. 處理交易紀錄 (保留你原本寫好的完美邏輯)
+      // 🌟 2. 處理交易紀錄 (保留你原本寫好的完美邏輯)
       const txQuery = query(collection(db, "adventures", resolvedId, "transactions"), orderBy("createdAt", "desc"));
       txUnsub = onSnapshot(txQuery, (snap) => {
         const list: Transaction[] = [];
@@ -246,7 +231,7 @@ export default function WalletScreen() {
     if (paramId) startListening(paramId as string);
     else AsyncStorage.getItem("@current_adventure_id").then((id) => id ? startListening(id) : setLoading(false));
 
-    return () => { membersUnsub(); txUnsub(); };
+    return () => { txUnsub(); };
   }, [paramId]);
 
   // --- 滑動切換控制 ---
