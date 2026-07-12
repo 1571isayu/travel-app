@@ -1,12 +1,12 @@
+//修
 {
   "expo": {
     "name": "Tabi-Tabi",
-    "slug": "Tabi-Tabi",
+    "slug": "my-first-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "Tabi-Tabi",
-    "userInterfaceStyle": "automatic",
+    "scheme": "tabitabi", //  請改成這樣！全部小寫，不要中括號    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -60,6 +60,7 @@
     },
     "updates": {
       "url": "https://u.expo.dev/d623a852-5864-4b10-9e35-a762a883552b"
-    }
+    },
+    "owner": "isayu1571"
   }
 }
